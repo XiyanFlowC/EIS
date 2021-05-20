@@ -5,7 +5,7 @@ module EIS
   ##
   # EIS Error type, raised by EIS module. It's just an Empty child
   # of StandardError
-  EISError = StandardError
+  EISError = Class.new StandardError
 
   ##
   # ArgumentError, raised when an unexcepted value be passed to
@@ -29,7 +29,6 @@ module EIS
       "Argument #{argument_name} is incorrect, because: #{reason}"
     end
   end
-
 
   ##
   # The main class which holds the ELF and interacts with elftools. 
@@ -79,7 +78,7 @@ module EIS
     def init! elf_file
       # @elf_base = elf_file if elf_file.class == ELFTools::ELFFile
       @elf_base, @base_stream = ELFTools::ELFFile.new(elf_file), elf_file if elf_file.class == File
-      @elf_base = ELFTools::ELFFile.new(@base_stream = File.new(elf_file, 'rb')) if elf_file.class == String
+      @elf_base = ELFTools::ELFFile.new(@base_stream = File.new(elf_file, 'rb')) if elf_file.class == ::String
       raise ArgumentError.new 'elf_file', 'elf_file must be File or String' if @elf_base == nil
     end
 
@@ -224,8 +223,7 @@ module EIS
     ##
     # Check if the given fragment is included in theis fragment
     def include? location, length
-      return true if @location <= location && @location + @length >= length
-      false
+      @location <= location && @location + @length >= location + length
     end
 
     ##
@@ -241,9 +239,17 @@ module EIS
     end
 
     def remove(location, length)
-      raise ArgumentError.new '[all]', 'The fragment should NOT be include by this fragment' if include? location, length
-      @location = location + length if @location < location + length
-      @length = @location - location if @location < location && @location + length > location
+      raise ArgumentError.new '[all]', 'The fragment should NOT be include by this fragment' if include? location-1, length+1
+      ter = @location + @length
+      cter = location + length
+
+      if cter < ter && cter > @location
+        @location = cter
+        @length = ter - @location
+      else
+        @length = location - @location
+      end
+      self
     end
 
     ##
@@ -295,6 +301,8 @@ module EIS
       @registerTable = Array.new
     end
 
+    attr_reader :registerTable
+
     ##
     # Allocate a free space
     def alloc(length)
@@ -302,6 +310,8 @@ module EIS
         if e.include? e.location, length
           loc = e.location
           e.remove e.location, length
+
+          @registerTable.delete(e) if e.length == 0
           return loc
         end
       end
@@ -315,7 +325,7 @@ module EIS
       @registerTable.each do |entry|
         if entry.overlap? location, length
           entry.merge location, length
-          return entry
+          return @registerTable
         end
       end
       @registerTable << PermissiveBlock.new(location, length)
@@ -349,6 +359,7 @@ module EIS
         end
 
         entry.remove location, length if entry.overlap? location, length
+        @registerTable.delete(entry) if entry.length == 0
       end
     end
   end
@@ -396,12 +407,13 @@ module EIS
   # The basic unit to dear with the exportation and importation
   #
   # = Example
-  # <tt>class A < EIS::BinStruct
+  # <tt>
+  # class A < EIS::BinStruct
   #   int8 :test, 4
   #   int16 :limit
   #   ref A, length = 999
-  # end</tt>
-  #
+  # end
+  #</tt>
   # = Remarks
   # The methods used in the declair should be mixin or by other
   # methods to add.
