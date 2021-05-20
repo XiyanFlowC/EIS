@@ -136,11 +136,16 @@ module EIS
   end
 
   class Ref
-    # ================================
-    # * type: 目标类型的类型
-    # * limit: 目标数组的长度
-    # * elfman: Elf管理器 (_EIS::ElfMan_)
-    # ================================
+    ##
+    # Create a new Ref type. 
+    #
+    # = Parameters
+    # * count: The pointers array's 
+    # * controls: See the following section
+    #
+    # = Controls
+    # * <tt>controls[0]</tt> The type that this ref point to
+    # * <tt>controls[1]</tt> The _ElfMan_ (for vma-loc calc)
     def initialize(count, controls)
       @type = controls[0]
       @limit = count
@@ -149,6 +154,8 @@ module EIS
 
     attr_accessor :data
 
+    ##
+    # Read from stream
     def read(stream)
       @data = []
       @ref = stream.sysread(4).unpack("L<") if @elf_man.elf_base.endian == :little
@@ -162,7 +169,7 @@ module EIS
       # --------------------------------
       stream.seek loc
 
-      @limit.time do
+      @limit.times do
         tmp = @type.new
         tmp.read(stream) # 载入
         @data << tmp # 加入数据数组
@@ -251,7 +258,7 @@ module EIS
   class BinStruct
 
     # ================================
-    # 注册到声明式ＡＰＩ（亦可作流式使用（卡住了，不好使））
+    # 注册到声明式ＡＰＩ
     # ================================
     class << self
       # --------------------------------
@@ -262,77 +269,57 @@ module EIS
         count = handle_count(params)
         
         register_field(name, count, Int8, [])
-        
-        self # 满足继续注册的要求
       end
 
       def int16(name, *params)
         count = handle_count(params)
 
         register_field(name, count, Int16, [])
-
-        self
       end
 
       def int32(name, *params)
         count = handle_count(params)
 
         register_field(name, count, Int32, [])
-
-        self
       end
 
       def int64(name, *params)
         count = handle_count(params)
 
         register_field(name, count, Int64, [])
-
-        self
       end
 
       def uint8(name, *params)
         count = handle_count(params)
 
         register_field(name, count, UInt8, [])
-
-        self
       end
 
       def uint16(name, *params)
         count = handle_count(params)
 
         register_field(name, count, UInt16, [])
-
-        self
       end
 
       def uint32(name, *params)
         count = handle_count(params)
 
         register_field(name, count, UInt32, [])
-
-        self
       end
 
       def uint64(name, *params)
         count = handle_count(params)
 
         register_field(name, count, UInt64, [])
-
-        self
       end
 
       def ref(type, name, count)
         register_field(name, count, Ref, [type, @@elf])
-
-        self
       end
 
       def string(name, *params)
-        count = params.count > 0 ? params[0] : 1
+        count = handle_count(params)
         register_field(name, count, String, [@@elf.string_alloc, @@elf])
-
-        self
       end
 
       def register_field name, count, type, controls
@@ -350,13 +337,13 @@ module EIS
       end
 
       def handle_count params
-        raise ArgumentError.new 'count', 'count must be a number' if count.class != Integer
-        return params[0] if params.count > 0
-        1
+        return 1 if params.count == 0
+        raise ArgumentError.new 'count', "count must be a number but #{params[0].class}" if params[0].class != Integer
+        params[0]
       end
 
       def new_child
-        ret = BinStruct.new
+        ret = Class.new EIS::ElfMan
         ret.class_variable_set '@@fieldsRegisterTable', Hash.new
         ret
       end
