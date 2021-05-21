@@ -156,6 +156,8 @@ module EIS
       @elf = elf_man
     end
 
+    attr_reader :location, :count
+
     ##
     # Read table contant from specified ElfMan
     #
@@ -167,16 +169,33 @@ module EIS
       @data = []
 
       @elf.base_stream.seek loc
+      i = 0
       @count.times do
-        inst = @type.new
-        inst.read(@elf.base_stream)
+        begin
+          inst = @type.new
+          inst.read(@elf.base_stream)
+        rescue Errno::EINVAL
+          puts "Table#read(): fatal: seek failed. @#{i}"
+          return
+        end
+        puts("Table#read(): read #{inst}") if $eis_debug
         @data << inst
+        i += 1
         yield(inst) if block_given?
       end
     end
     
     def data
       @data
+    end
+
+    def data= value
+      raise ArgumentError.new 'value', 'Size error.' if value.size != @count
+      @data = value
+    end
+
+    def set_data! value
+      @data = value
     end
 
     ##
@@ -401,7 +420,7 @@ module EIS
   # = Fields
   # _:id_::     The appear sort of this field
   # _:type_::   The type of this field
-  # Field = Struct.new(:name, :count, :type, :control)
+  Field = Struct.new(:type, :count, :control)
 
   ##
   # The basic unit to dear with the exportation and importation
@@ -438,6 +457,13 @@ module EIS
       child.class_variable_set '@@fieldsRegisterTable', Hash.new(nil)
       child.class_variable_set '@@elf', @@elf
       child.class_eval <<-EOD
+      def initialize
+        @fields = Hash.new
+        @@fieldsRegisterTable.each do |name, cnt|
+          @fields[name] = cnt.type.new(cnt.count, cnt.control)
+        end
+      end
+
       def self.elf
         @@elf
       end
@@ -447,14 +473,14 @@ module EIS
       end
 
       def read(stream)
-        @@fieldsRegisterTable.each do |key, entry|
+        @fields.each do |key, entry|
           entry.read(stream)
           yield(entry.data) if block_given?
         end
       end
 
       def write(stream)
-        @@fieldsRegisterTable.each do |key, entry|
+        @fields.each do |key, entry|
           entry.write(stream)
         end
       end

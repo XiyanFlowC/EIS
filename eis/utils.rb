@@ -158,10 +158,11 @@ module EIS
     # Read from stream
     def read(stream)
       @data = []
-      @ref = stream.sysread(4).unpack("L<") if @elf_man.elf_base.endian == :little
-      @ref = stream.sysread(4).unpack("L>") if @elf_man.elf_base.endian == :big
+      @ref = stream.sysread(4).unpack("L<")[0] if @elf_man.elf_base.endian == :little
+      @ref = stream.sysread(4).unpack("L>")[0] if @elf_man.elf_base.endian == :big
 
       ploc = stream.pos
+      puts("Ref#read(): @ref = #{@ref}") if $eis_debug
       # 为读取到的指针解引用。
       loc = @elf_man.vma_to_loc @ref # 解引用 
         
@@ -169,9 +170,18 @@ module EIS
       # --------------------------------
       stream.seek loc
 
+      i = 0
       @limit.times do
         tmp = @type.new
-        tmp.read(stream) # 载入
+        begin
+          tmp.read(stream) # 载入
+        rescue Errno::EINVAL
+          puts "Ref#read(): fatal: seek failed. @#{i}"
+          stream.seek ploc
+          return
+        end
+        puts("Ref#read(): read[#{i}] #{tmp}") if $eis_debug
+        i += 1
         @data << tmp # 加入数据数组
       end
 
@@ -314,7 +324,7 @@ module EIS
       end
 
       def ref(type, name, count)
-        register_field(name, count, Ref, [type, @@elf])
+        register_field(name, count, Ref, [@@types[type.to_s], @@elf])
       end
 
       def string(name, *params)
@@ -325,15 +335,15 @@ module EIS
       def register_field name, count, type, controls
         self.class_eval <<-EOD
         def #{name}
-          @@fieldsRegisterTable["#{name.to_s}"].data
+          @fields["#{name.to_s}"].data
         end
 
         def #{name}=(value)
-          @@fieldsRegisterTable["#{name.to_s}"].data = value
+          @fields["#{name.to_s}"].data = value
         end
         EOD
 
-        self.fieldsRegisterTable[name.to_s] = type.new(count, controls)
+        self.fieldsRegisterTable[name.to_s] = Field.new(type, count, controls)
       end
 
       def handle_count params
