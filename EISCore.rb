@@ -1,4 +1,4 @@
-require_relative './eis/utils'
+require_relative './eis/eis'
 require 'rexml/document'
 
 module EIS
@@ -28,23 +28,15 @@ module EIS
         begin
           e.read
         rescue =>exception
-          puts exception.to_s
-          puts "When read #{k}."
+          puts "When read #{k}: #{exception.to_s}"
+          puts exception.backtrace if $eis_debug
         end
       end
       @elf.permission_man.global_merge
     end
 
-    def select(name, condition)
-      tmp = []
-
-      @tbls[name].data do |e|
-        tmp << e if condition.call(e)
-      end
-
-      tmp.each {|e| yield(e)} if block_given?
-
-      tmp
+    def select(name)
+      @tbls[name]
     end
 
     def save
@@ -55,9 +47,12 @@ module EIS
       @tbls.each do |key, value|
         ele = xml.add_element(key, {'addr'=>value.location.to_s, 'size'=>value.count.to_s})
 
+        i = 0
         value.data.each do |e|
+          entry = ele.add_element(e.class.to_s, {'index' => i.to_s})
+          i += 1
           e.fields.each do |k, v|
-            f = ele.add_element(k)
+            f = entry.add_element(k, {'type' => v.class.to_s})
             if v.class == Ref
               do_save f, v
             else
@@ -75,13 +70,13 @@ module EIS
     
     protected
     def do_save(xml, val)
-      xml.add_attributes({'type' => 'ref', 'count' => val.data.size})
+      # xml.add_attributes({'type' => 'ref', 'count' => val.data.size})
       i = 0
       val.data.each do |e|
-        entry = xml.add_element('entry', {'index' => i.to_s})
+        entry = xml.add_element(e.class.to_s, {'index' => i.to_s})
         i += 1
         e.fields.each do |k, v|
-          f = entry.add_element(k)
+          f = entry.add_element(k, {'type' => v.class.to_s})
           if v.class == Ref
             do_save f, v
           else

@@ -361,8 +361,12 @@ module EIS
       @registerTable.each do |entry|
         @registerTable.each do |ie|
           next if ie == entry
-          ie.block_merge entry if ie.block_overlap? entry
-          @registerTable.delete entry
+          if ie.block_include? entry
+            @registerTable.delete entry
+          elsif ie.block_overlap? entry
+            ie.block_merge entry
+            @registerTable.delete entry
+          end
         end
       end
     end
@@ -449,9 +453,11 @@ module EIS
       @data = []
       @ref = stream.sysread(4).unpack("L<")[0] if @elf_man.elf_base.endian == :little
       @ref = stream.sysread(4).unpack("L>")[0] if @elf_man.elf_base.endian == :big
-
-      ploc = stream.pos
       puts("Ref#read(): @ref = #{@ref}") if $eis_debug
+    end
+
+    def readref(stream)
+      ploc = stream.pos
       # 为读取到的指针解引用。
       loc = @elf_man.vma_to_loc @ref # 解引用 
         
@@ -465,11 +471,11 @@ module EIS
         begin
           tmp.read(stream) # 载入
         rescue Errno::EINVAL
-          puts "Ref#read(): fatal: seek failed. @#{i}"
+          puts "Ref#readref(): fatal: seek failed. @#{i}"
           stream.seek ploc
           return
         end
-        puts("Ref#read(): read[#{i}] #{tmp}") if $eis_debug
+        puts("Ref#readref(): read[#{i}] #{tmp}") if $eis_debug
         i += 1
         @data << tmp # 加入数据数组
       end
@@ -549,9 +555,15 @@ module EIS
       end
 
       def read(stream)
+        readdelay = []
         @fields.each do |key, entry|
+          readdelay << entry if entry.class == Ref
+
           entry.read(stream)
-          yield(entry.data) if block_given?
+        end
+
+        readdelay.each do |entry|
+          entry.readref(stream)
         end
       end
 
