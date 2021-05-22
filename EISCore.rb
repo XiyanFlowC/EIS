@@ -47,19 +47,14 @@ module EIS
       @tbls.each do |key, value|
         ele = xml.add_element(key, {'addr'=>value.location.to_s, 'size'=>value.count.to_s})
 
-        i = 0
-        value.data.each do |e|
-          entry = ele.add_element(e.class.to_s, {'index' => i.to_s})
-          i += 1
-          e.fields.each do |k, v|
-            f = entry.add_element(k, {'type' => v.class.to_s})
-            if v.class == Ref
-              do_save f, v
-            else
-              f.add_text v.data.to_s
-            end
-          end
-        end
+        do_save(ele, value)
+      end
+
+      pm = xml.add_element('PermissiveBlocks', {'type' => 'EISCore', 'count' => @elf.permission_man.registerTable.size})
+      @elf.permission_man.registerTable.each do |e|
+        entry = pm.add_element('PermissiveBlock')
+        entry.add_element('Location', {'base' => '16', 'unit' => 'byte'}).add_text(e.location.to_s(16))
+        entry.add_element('Length', {'base' => '10', 'unit' => 'byte'}).add_text(e.length.to_s)
       end
 
       doc.write file, 2
@@ -70,7 +65,6 @@ module EIS
     
     protected
     def do_save(xml, val)
-      # xml.add_attributes({'type' => 'ref', 'count' => val.data.size})
       i = 0
       val.data.each do |e|
         entry = xml.add_element(e.class.to_s, {'index' => i.to_s})
