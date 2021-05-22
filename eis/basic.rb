@@ -540,6 +540,10 @@ module EIS
         @@elf
       end
 
+      def fields
+        @fields.dup
+      end
+
       def self.fieldsRegisterTable
         @@fieldsRegisterTable
       end
