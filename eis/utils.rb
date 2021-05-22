@@ -1,6 +1,21 @@
 require_relative 'basic.rb'
 
 module EIS
+  module NumericDataAccess
+    def data
+      return @data[0] if @data.class == Array && @data.size == 1
+      @data
+    end
+
+    def data=(val)
+      if val.is_a? Numeric
+        @data = [val]
+      else
+        @data = val
+      end
+    end
+  end
+
   # ================================
   # 解析８位整型数据
   # ================================
@@ -9,7 +24,7 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       @data = stream.sysread(@count).unpack("c#{@count}")
@@ -28,13 +43,13 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       @data = stream.sysread(2 * @count).unpack("s#{@count}")
     end
 
-    def self.write(stream)
+    def write(stream)
       stream.syswrite(@data.pack("s#{@data.count}"))
     end
   end
@@ -44,7 +59,7 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       @data = stream.sysread(4 * @count).unpack("l#{@count}")
@@ -60,7 +75,7 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       @data = stream.sysread(8 * @count).unpack("q#{@count}")
@@ -76,7 +91,7 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       stream.sysread(@count).unpack("C#{@count}")
@@ -92,7 +107,7 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       stream.sysread(2 * @count).unpack("S#{@count}")
@@ -108,7 +123,7 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       stream.sysread(4 * @count).unpack("L#{@count}")
@@ -124,7 +139,7 @@ module EIS
       @count = count
     end
 
-    attr_accessor :data
+    include NumericDataAccess
 
     def read(stream)
       @data = stream.sysread(8 * @count).unpack("Q#{@count}")
@@ -132,72 +147,6 @@ module EIS
 
     def write(stream)
       stream.syswrite(@data.pack("@#{@count}"))
-    end
-  end
-
-  class Ref
-    ##
-    # Create a new Ref type. 
-    #
-    # = Parameters
-    # * count: The pointers array's 
-    # * controls: See the following section
-    #
-    # = Controls
-    # * <tt>controls[0]</tt> The type that this ref point to
-    # * <tt>controls[1]</tt> The _ElfMan_ (for vma-loc calc)
-    def initialize(count, controls)
-      @type = controls[0]
-      @limit = count
-      @elf_man = controls[1]
-    end
-
-    attr_accessor :data
-
-    ##
-    # Read from stream
-    def read(stream)
-      @data = []
-      @ref = stream.sysread(4).unpack("L<")[0] if @elf_man.elf_base.endian == :little
-      @ref = stream.sysread(4).unpack("L>")[0] if @elf_man.elf_base.endian == :big
-
-      ploc = stream.pos
-      puts("Ref#read(): @ref = #{@ref}") if $eis_debug
-      # 为读取到的指针解引用。
-      loc = @elf_man.vma_to_loc @ref # 解引用 
-        
-      # 寻址到对应位置，准备载入。
-      # --------------------------------
-      stream.seek loc
-
-      i = 0
-      @limit.times do
-        tmp = @type.new
-        begin
-          tmp.read(stream) # 载入
-        rescue Errno::EINVAL
-          puts "Ref#read(): fatal: seek failed. @#{i}"
-          stream.seek ploc
-          return
-        end
-        puts("Ref#read(): read[#{i}] #{tmp}") if $eis_debug
-        i += 1
-        @data << tmp # 加入数据数组
-      end
-
-      stream.seek ploc
-    end
-
-    def write(stream)
-      nloc = stream.pos
-
-      loc = @elf_man.vma_to_loc @ref
-      stream.seek loc
-      @data.each do |entry|
-        entry.write(stream)
-      end
-
-      stream.seek nloc
     end
   end
 
@@ -210,11 +159,11 @@ module EIS
     #
     # = 参数
     # +count+::  指向字符串指针的数量
-    # +controls+:: 指定布局为，0: 容许段管理器; 1: elf管理器（解引用）
+    # +controls+:: 指定布局为，1: 容许段管理器; 2: elf管理器（解引用）
     def initialize(count, controls)
       @count = count
-      @perm = controls[0]
-      @elf = controls[1]
+      @perm = controls[1]
+      @elf = controls[2]
     end
 
     attr_accessor :data
@@ -321,10 +270,6 @@ module EIS
         count = handle_count(params)
 
         register_field(name, count, UInt64, [])
-      end
-
-      def ref(type, name, count)
-        register_field(name, count, Ref, [@@types[type.to_s], @@elf])
       end
 
       def string(name, *params)

@@ -423,6 +423,74 @@ module EIS
   Field = Struct.new(:type, :count, :control)
 
   ##
+  # Pointer deref, co-operate with BinStruct
+  class Ref
+    ##
+    # Create a new Ref type. 
+    #
+    # = Parameters
+    # * count: The pointers array's 
+    # * controls: See the following section
+    #
+    # = Controls
+    # * <tt>controls[1]</tt> The type that this ref point to
+    # * <tt>controls[2]</tt> The _ElfMan_ (for vma-loc calc)
+    def initialize(count, controls)
+      @type = controls[1]
+      @limit = count.class == Symbol ? controls[0].method(count) : ->{count}
+      @elf_man = controls[2]
+    end
+
+    attr_accessor :data
+
+    ##
+    # Read from stream
+    def read(stream)
+      @data = []
+      @ref = stream.sysread(4).unpack("L<")[0] if @elf_man.elf_base.endian == :little
+      @ref = stream.sysread(4).unpack("L>")[0] if @elf_man.elf_base.endian == :big
+
+      ploc = stream.pos
+      puts("Ref#read(): @ref = #{@ref}") if $eis_debug
+      # 为读取到的指针解引用。
+      loc = @elf_man.vma_to_loc @ref # 解引用 
+        
+      # 寻址到对应位置，准备载入。
+      # --------------------------------
+      stream.seek loc
+
+      i = 0
+      @limit.call.times do
+        tmp = @type.new
+        begin
+          tmp.read(stream) # 载入
+        rescue Errno::EINVAL
+          puts "Ref#read(): fatal: seek failed. @#{i}"
+          stream.seek ploc
+          return
+        end
+        puts("Ref#read(): read[#{i}] #{tmp}") if $eis_debug
+        i += 1
+        @data << tmp # 加入数据数组
+      end
+
+      stream.seek ploc
+    end
+
+    def write(stream)
+      nloc = stream.pos
+
+      loc = @elf_man.vma_to_loc @ref
+      stream.seek loc
+      @data.each do |entry|
+        entry.write(stream)
+      end
+
+      stream.seek nloc
+    end
+  end
+
+  ##
   # The basic unit to dear with the exportation and importation
   #
   # = Example
@@ -452,6 +520,10 @@ module EIS
       @@elf = elf
     end
 
+    def self.ref(type, name, count)
+      return register_field(name, count, Ref, [@@types[type.to_s], @@elf])
+    end
+
     def self.inherited(child)
       @@types[child.to_s] = child
       child.class_variable_set '@@fieldsRegisterTable', Hash.new(nil)
@@ -460,7 +532,7 @@ module EIS
       def initialize
         @fields = Hash.new
         @@fieldsRegisterTable.each do |name, cnt|
-          @fields[name] = cnt.type.new(cnt.count, cnt.control)
+          @fields[name] = cnt.type.new(cnt.count, [self] + cnt.control)
         end
       end
 
