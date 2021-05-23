@@ -1,6 +1,7 @@
 require 'elftools'
 
 module EIS
+  $eis_shift = 2 # the shift aggressivity
 
   ##
   # EIS Error type, raised by EIS module. It's just an Empty child
@@ -324,7 +325,8 @@ module EIS
 
     ##
     # Allocate a free space
-    def alloc(length)
+    def alloc(length, align: 8)
+      length = length + align - 1 & ~(align - 1)
       @registerTable.each do |e|
         if e.include? e.location, length
           loc = e.location
@@ -340,7 +342,8 @@ module EIS
 
     ##
     # Register a fragment
-    def register(location, length)
+    def register(location, length, align: 8)
+      length = length + align - 1 & ~(align - 1)
       @registerTable.each do |entry|
         if entry.overlap? location, length
           entry.merge location, length
@@ -445,6 +448,10 @@ module EIS
       @elf_man = controls[2]
     end
 
+    def size
+      4
+    end
+
     attr_accessor :data
 
     ##
@@ -468,17 +475,18 @@ module EIS
       i = 0
       @limit.call.times do
         tmp = @type.new
-        begin
+        # begin
           tmp.read(stream) # 载入
-        rescue Errno::EINVAL
-          puts "Ref#readref(): fatal: seek failed. @#{i}"
-          stream.seek ploc
-          return
-        end
+        # rescue Errno::EINVAL
+        #   puts "Ref#readref(): fatal: seek failed. @#{i}"
+        #   stream.seek ploc
+        #   break
+        # end
         puts("Ref#readref(): read[#{i}] #{tmp}") if $eis_debug
         i += 1
         @data << tmp # 加入数据数组
       end
+      @elf_man.permission_man.register(loc, @data.size * @data[0].size) if $eis_shift >= 2
 
       stream.seek ploc
     end
@@ -487,6 +495,7 @@ module EIS
       nloc = stream.pos
 
       loc = @elf_man.vma_to_loc @ref
+      loc = @elf_man.permission_man.alloc(@data.size * @data[0].size) if $eis_shift >= 2
       stream.seek loc
       @data.each do |entry|
         entry.write(stream)
@@ -540,6 +549,15 @@ module EIS
         @@fieldsRegisterTable.each do |name, cnt|
           @fields[name] = cnt.type.new(cnt.count, [self] + cnt.control)
         end
+      end
+
+      def size
+        ret = 0
+        @fields.each do |k,e|
+          ret += e.size
+        end
+
+        ret
       end
 
       def self.elf

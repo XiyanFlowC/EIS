@@ -33,6 +33,10 @@ module EIS
     def write(stream)
       stream.syswrite(value.pack("c#{@data.count}"))
     end
+
+    def size
+      @count
+    end
   end
 
   # ================================
@@ -52,6 +56,10 @@ module EIS
     def write(stream)
       stream.syswrite(@data.pack("s#{@data.count}"))
     end
+
+    def size
+      @count * 2
+    end
   end
 
   class Int32
@@ -67,6 +75,10 @@ module EIS
 
     def write(stream)
       stream.syswrite(@data.pack("l#{@data.count}"))
+    end
+
+    def size
+      @count * 4
     end
   end
 
@@ -84,6 +96,10 @@ module EIS
     def write(stream)
       stream.syswrite(@data.pack("q#{@data.count}"))
     end
+
+    def size
+      @count * 8
+    end
   end
 
   class UInt8
@@ -99,6 +115,10 @@ module EIS
 
     def write(stream)
       stream.syswrite(@data.pack("C#{@count}"))
+    end
+
+    def size
+      @count
     end
   end
 
@@ -116,6 +136,10 @@ module EIS
     def write(stream)
       stream.syswrite(@data.pack("S#{@count}"))
     end
+
+    def size
+      @count * 2
+    end
   end
 
   class UInt32
@@ -132,6 +156,10 @@ module EIS
     def write(stream)
       stream.syswrite(@data.pack("L#{@count}"))
     end
+
+    def size
+      @count * 4
+    end
   end
 
   class UInt64
@@ -147,6 +175,10 @@ module EIS
 
     def write(stream)
       stream.syswrite(@data.pack("@#{@count}"))
+    end
+
+    def size
+      @count * 8
     end
   end
 
@@ -175,7 +207,7 @@ module EIS
       refs.each do |e|
         loc = @elf.vma_to_loc(e)
         stream.seek loc
-        @data = fetch_string(stream)
+        @data = fetch_string(stream)# FIXME: @data 应该是一个数组
         @perm.register(loc, @data)
       end
       stream.pos = oloc
@@ -193,6 +225,10 @@ module EIS
       end
       stream.pos = oloc
       stream.syswrite(refs.pack("L#{@count}"))
+    end
+
+    def size
+      @count * 4
     end
 
     protected
