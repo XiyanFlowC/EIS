@@ -176,7 +176,7 @@ module EIS
           inst = @type.new
           inst.read(@elf.base_stream)
         rescue Errno::EINVAL
-          puts "Table#read(): fatal: seek failed. @#{i}"
+          raise "Table#read(): fatal: seek failed. @#{i}"
           return
         end
         puts("Table#read(): read #{inst}") if $eis_debug
@@ -308,8 +308,12 @@ module EIS
   # <tt>pm = PermissiveMan.new 
   # pm.register 0x8600, 128 
   # pm.include? 0x860f, 16 # => true 
-  # pm.remove 0x8618, 1024 #it's fine to remove a never existed fregment 
+  # pm.remove 0x8618, 1024 #it's fine to remove a never exist fregment 
   # pm.include? 0x860f, 16 # => false</tt> 
+  # # after many reg/rm ...
+  # pm.global_merge # Very important! Or causes wrone result!
+  # pm.alloc(0, 16)
+  # #other alloc ...
   #
   # = Remarks 
   # After register a lots of fregment, the fragments will here and ther 
@@ -354,8 +358,8 @@ module EIS
     end
 
     ##
-    # Compare every entry in the manager, merge and reduce them to 
-    # prevent pragment.
+    # Compare each entry in the manager, merge and reduce them to 
+    # prevent fragment.
     #
     # = Remark
     # It's better to execute this methods before read from this class
@@ -444,6 +448,7 @@ module EIS
     # * <tt>controls[2]</tt> The _ElfMan_ (for vma-loc calc)
     def initialize(count, controls)
       @type = controls[1]
+      @count = count
       @limit = count.class == Symbol ? controls[0].method(count) : ->{count}
       @elf_man = controls[2]
     end
@@ -452,7 +457,7 @@ module EIS
       4
     end
 
-    attr_accessor :data
+    attr_accessor :data, :ref, :count
 
     ##
     # Read from stream
@@ -540,9 +545,9 @@ module EIS
     end
 
     def self.inherited(child)
-      @@types[child.to_s] = child
-      child.class_variable_set '@@fieldsRegisterTable', Hash.new(nil)
-      child.class_variable_set '@@elf', @@elf
+      @@types[child.to_s] = child # register claimed types, so that the other children can find each other
+      child.class_variable_set '@@fieldsRegisterTable', Hash.new(nil) # this val shouldn't impact the parent
+      # child.class_variable_set '@@elf', @@elf
       child.class_eval <<-EOD
       def initialize
         @fields = Hash.new
@@ -573,7 +578,7 @@ module EIS
       end
 
       def read(stream)
-        readdelay = []
+        readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
         @fields.each do |key, entry|
           readdelay << entry if entry.class == Ref
 
@@ -581,7 +586,7 @@ module EIS
         end
 
         readdelay.each do |entry|
-          entry.readref(stream)
+          entry.readref(stream) # 此时再解引用，这时数量限制数据必然已经读入
         end
       end
 
