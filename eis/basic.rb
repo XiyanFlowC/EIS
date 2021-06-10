@@ -1,7 +1,7 @@
 require 'elftools'
 
 module EIS
-  $eis_shift = 2 # the shift aggressivity
+  $eis_shift = 1 # the shift aggressivity 0 none, 1 str, 2 ptr
 
   ##
   # EIS Error type, raised by EIS module. It's just an Empty child
@@ -191,7 +191,7 @@ module EIS
     end
 
     def data= value
-      raise ArgumentError.new 'value', 'Size error.' if value.size != @count
+      raise ArgumentError.new 'value', "Size error. (#{value.size} against #{@count})" if value.size != @count
       @data = value
     end
 
@@ -497,16 +497,20 @@ module EIS
     end
 
     def write(stream)
-      nloc = stream.pos
-
-      loc = @elf_man.vma_to_loc @ref
-      loc = @elf_man.permission_man.alloc(@data.size * @data[0].size) if $eis_shift >= 2
+      loc = @elf_man.vma_to_loc @ref # 获取原始位置
+      loc = @elf_man.permission_man.alloc(@data.size * @data[0].size) if $eis_shift >= 2 # 激进的指针重整策略需要重新分配指针表空间
+      raise "Virtual memory run out" if loc.nil?
+      rloc = [loc].pack("L<")[0] if @elf_man.elf_base.endian == :little
+      rloc = [loc].pack("L>")[0] if @elf_man.elf_base.endian == :big
+      stream.syswrite(rloc)
+      nloc = stream.pos # 保存当前流位置，避免后续读取／写入混乱
+      
       stream.seek loc
       @data.each do |entry|
         entry.write(stream)
       end
 
-      stream.seek nloc
+      stream.seek nloc # 恢复流位置
     end
   end
 

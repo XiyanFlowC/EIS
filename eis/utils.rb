@@ -10,6 +10,8 @@ module EIS
     def data=(val)
       if val.is_a? Numeric
         @data = [val]
+      elsif val.is_a? ::String
+        @data = [val.to_i]
       else
         @data = val
       end
@@ -110,7 +112,7 @@ module EIS
     include NumericDataAccess
 
     def read(stream)
-      stream.sysread(@count).unpack("C#{@count}")
+      @data = stream.sysread(@count).unpack("C#{@count}")
     end
 
     def write(stream)
@@ -130,7 +132,7 @@ module EIS
     include NumericDataAccess
 
     def read(stream)
-      stream.sysread(2 * @count).unpack("S#{@count}")
+      @data = stream.sysread(2 * @count).unpack("S#{@count}")
     end
 
     def write(stream)
@@ -150,7 +152,7 @@ module EIS
     include NumericDataAccess
 
     def read(stream)
-      stream.sysread(4 * @count).unpack("L#{@count}")
+      @data = stream.sysread(4 * @count).unpack("L#{@count}")
     end
 
     def write(stream)

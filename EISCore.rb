@@ -24,8 +24,10 @@ module EIS
   # tbl.each {|x| x.Length = 0 if x.Length >= 3000}
   # </tt>
   class Core
-    def initialize elf_path ,path = nil
+    def initialize elf_path ,path = nil, target_elf = 'output.elf'
+      File.new(target_elf, "w").close unless File.exists? target_elf
       @elf = EIS::ElfMan.new elf_path
+      @out_elf = File.new(target_elf, "r+b")
       EIS::BinStruct.init(@elf)
       @path = path
       @tbls = Hash.new nil
@@ -41,15 +43,6 @@ module EIS
     # * _type_: the entries' type. 
     def table(name, location, length, type)
       @tbls[name.to_s] = @elf.new_table(location, length, type)
-    end
-
-    def update(name, data)
-      @tbls[name].data.each do |e|
-        data.each do |key, value|
-          e.send("#{key.to_s}=", value)
-        end
-      end
-      @tbls[name]
     end
 
     ##
@@ -75,14 +68,15 @@ module EIS
     def save
       file = File.new @path, 'w'
       doc = REXML::Document.new
-      xml = doc.add_element('ELF', {'name'=>@elf.base_stream.path, 'version' => @elf.base_stream.mtime.to_s})
+      xml = doc.add_element('ELF', {'name'=>@elf.base_stream.path, 'version' => @elf.base_stream.mtime.to_s}) # root element
 
-      @tbls.each do |key, value|
+      @tbls.each do |key, value| # save all tables
         ele = xml.add_element(key, {'type'=>'Table', 'addr'=>value.location.to_s, 'size'=>value.count.to_s})
 
         do_save(ele, value)
       end
 
+      # save permission data
       pm = xml.add_element('PermissiveBlocks', {'type' => 'EISCore', 'count' => @elf.permission_man.registerTable.size})
       @elf.permission_man.registerTable.each do |e|
         entry = pm.add_element('PermissiveBlock')
@@ -94,9 +88,54 @@ module EIS
       file.close
     end
 
+    def load(mode: "r", strict: true)
+      doc = REXML::Document.new(File.new(@path, mode))
+
+      root = doc.root
+      if root.attributes['version'] != @elf.base_stream.mtime.to_s # base elf version mismatch
+        warn "WARN: The version of elf against the version of knowledge base"
+        return nil if strict
+      end
+
+      if root.attributes['name'] != @elf.base_stream.path
+        warn "WARN: Filenames mismatch."
+        return nil if strict
+      end
+
+      root.each_element_with_attribute('type', 'Table') do |ele| # load for tables
+        tbl = select(ele.name)
+        data = []
+        ele.elements.each do |e| # entries in table
+          cnt = Module.const_get(e.name).new
+          e.elements.each do |fld| # every fileds
+            if fld.attributes['type'] == 'Array'
+              tmp = []
+              fld.each_element do |entry|
+                if fld['base'].include? "Int"
+                  tmp << entry.text.splite.to_i
+                else
+                  raise "FIXME: Not Implement Yet"
+                end
+              end
+              cnt.send("#{fld.name}=", tmp)
+            elsif fld.attributes['type'] == 'Ref'
+              warn "FIXME: Not Implement Yet"
+            else
+              cnt.send("#{fld.name}=", fld.text.splite)
+            end
+          end
+          data << cnt
+        end
+        tbl.data = data
+      end
+    end
+
     attr_reader :tbls
     
     protected
+    def read_tbl (ele)
+    end
+
     ##
     # Recursive daving routine
     # = Parameters
@@ -104,6 +143,7 @@ module EIS
     # +val+:: Value that should be write
     def do_save(xml, val)
       i = 0
+      return nil if val.data.nil?
       val.data.each do |e|
         entry = xml.add_element(e.class.to_s, {'index' => i.to_s})
         i += 1
