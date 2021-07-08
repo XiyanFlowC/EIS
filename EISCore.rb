@@ -119,9 +119,9 @@ module EIS
               end
               cnt.send("#{fld.name}=", tmp)
             elsif fld.attributes['type'] == 'Ref'
-              warn "FIXME: Not Implement Yet"
+              cnt.send("#{fld.name}=", fld.text.strip.to_i(16))
             else
-              cnt.send("#{fld.name}=", fld.text.splite)
+              cnt.send("#{fld.name}=", fld.text.strip)
             end
           end
           data << cnt
@@ -151,9 +151,10 @@ module EIS
           f = entry.add_element(k)
           if v.class == Ref
             f.add_attribute('type', 'Ref')
-            f.add_attribute('refval', v.ref.to_s(16).upcase)
+            # f.add_attribute('refval', v.ref.to_s(16).upcase)
             f.add_attribute('limiter', v.count.to_s)
-            do_save f, v
+            f.add_text v.data.to_s(16)
+            # do_save f, v
           elsif v.data.class == Array
             f.add_attribute('type', 'Array')
             f.add_attribute('size', v.data.size.to_s)

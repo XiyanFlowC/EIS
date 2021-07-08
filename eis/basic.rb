@@ -1,7 +1,11 @@
 require 'elftools'
+require_relative 'ELFMan'
+require_relative 'Table'
+require_relative 'PermissiveBlock'
 
 module EIS
   $eis_shift = 1 # the shift aggressivity 0 none, 1 str, 2 ptr
+  # 请不要设为2，激进的指针重整策略现在暂不可用
 
   ##
   # EIS Error type, raised by EIS module. It's just an Empty child
@@ -32,266 +36,30 @@ module EIS
   end
 
   ##
-  # The main class which holds the ELF and interacts with elftools. 
-  #
-  # Init it first before anything you want to do with this module. 
-  #
-  # = Initializer's Parameters
-  # The param +elf_file+ can be _File_, _ELFTools::ELFFile_, or _String_.
-  # [<tt>File</tt>] In this case, the programe will regonize it and try
-  #                 to pass this stream to elftools
-  #
-  # [<tt>ELFTools::ELFFile</tt>] *discard* In this case, the programe will store the
-  #                              Object directly
-  #
-  # [<tt>String</tt>] In this case, the programe will open the given *path* 
-  #                   with the mode 'rb' and passes the stream to elftools.
-  #
-  # = Example
-  # <tt>foo = EIS::ElfMan.new(File.new('bar.elf', 'rb'))</tt>
-  #
-  # and this form is also fine:
-  #
-  # <tt>foo = EIS::ElfMan.new('bar.elf', 'rb')</tt>
-  # 
-  # Then you can use it like:
-  # 
-  # <tt>foo.extract(bar)</tt>
-  class ElfMan
-    ##
-    # Create an instance of ElfMan.
-    #
-    # = Parameter
-    # +elf_file+:: Refer to _ElfMan_'s Initializer's Parameters section.
-    def initialize elf_file
-      init!(elf_file)
-      @permission_man = PermissiveMan.new
-      @string_alloc = StringAllocater.new(@permission_man)
+  # = SymbolMan
+  # The symbols manager
+  # = Perpose
+  # For manage the table's address and coresponding naming
+  class SymbolMan
+    def initialize elf_man
+      @symb = Hash.new(nil)
+      @elf_man = elf_man
     end
 
-    ##
-    # Initialize the elf (pass the elf file to elftools).
-    #
-    # *Will lost the older elf stream.*
-    #
-    # = Parameter
-    # +elf_file+:: Target elf stream, can be _File_ or _String_ (as a path).
-    def init! elf_file
-      # @elf_base = elf_file if elf_file.class == ELFTools::ELFFile
-      @elf_base, @base_stream = ELFTools::ELFFile.new(elf_file), elf_file if elf_file.class == File
-      @elf_base = ELFTools::ELFFile.new(@base_stream = File.new(elf_file, 'rb')) if elf_file.class == ::String
-      raise ArgumentError.new 'elf_file', 'elf_file must be File or String' if @elf_base == nil
+    def reg_symb(location, tbl)
+      @symb[location] = tbl
     end
 
-    attr_reader :elf_base
-    attr_reader :permission_man
-    attr_reader :string_alloc
-
-    ##
-    # Get the base stream (shoud be readonly)
-    def base_stream
-      @base_stream
+    def get_addr(tbl)
+      @elf_man.loc_to_vma @symb.index(tbl)
     end
 
-    ##
-    # Get the output stream
-    def elf_out
-      @elf_out
+    def get_loc(tbl)
+      @symb.index(tbl)
     end
 
-    ##
-    # Set the output stream
-    def elf_out=(val)
-      @elf_out = val
-    end
-
-    ##
-    # Get a new table relatied to this class
-    def new_table(location, count, type)
-      return Table.new(location, count, type, self)
-    end
-
-    def vma_to_loc(value)
-      @elf_base.segment_by_type(:PT_LOAD).vma_to_offset value
-    end
-
-    def loc_to_vma(value)
-      @elf_base.segment_by_type(:PT_LOAD).offset_to_vma value
-    end
-  end
-
-  ##
-  # Table is a class to record where and how large a structure array is.
-  #
-  # = Purpose
-  # * Record the position (and the size) of a structure
-  # * Provides convinient methods to extract this structure array
-  # * Provides enough free space so that user can change it's behavior
-  #
-  # = Example
-  # <tt>tbl = Table.new 0x2ff59d3, 32, Dialog
-  # tbl.elf = elf # these two lines are equal to elf.new_table 0x2ff59d3, 32, Dialog
-  # tbl.extract do |entry|
-  #   puts entry.id, entry.text
-  # end
-  # 
-  # tbl.each do |entry|
-  #   entry.id = 5 if entry.text == 'Set up.'
-  # end
-  # 
-  # outelf = File.new('./output.elf', 'wb')
-  # elf.output = outelf
-  # tbl.write #this action will sync the modifications to elf output stream</tt>
-  class Table
-    ##
-    # Create a new table instance
-    # 
-    # = Parameters
-    # +location+::  +Number+ A number to record where the table located.
-    # +count+::     +Number+ How many entries this table contains.
-    # +type+::      +EIS::BinStruct+ The type of entry.
-    def initialize(location, count, type, elf_man)
-      @location = location
-      @count = count
-      @type = type
-      @elf = elf_man
-    end
-
-    attr_reader :location, :count
-
-    ##
-    # Read table contant from specified ElfMan
-    #
-    # = Code Block
-    # A block with one parameter which recieve the read 
-    # ENTRY datum instance.
-    def read()
-      loc = @elf.vma_to_loc @location
-      @data = []
-
-      @elf.base_stream.seek loc
-      i = 0
-      @count.times do
-        begin
-          inst = @type.new
-          inst.read(@elf.base_stream)
-        rescue Errno::EINVAL
-          raise "Table#read(): fatal: seek failed. @#{i}"
-          return
-        end
-        puts("Table#read(): read #{inst}") if $eis_debug
-        @data << inst
-        i += 1
-        yield(inst) if block_given?
-      end
-    end
-    
-    def data
-      @data
-    end
-
-    def data= value
-      raise ArgumentError.new 'value', "Size error. (#{value.size} against #{@count})" if value.size != @count
-      @data = value
-    end
-
-    def set_data! value
-      @data = value
-    end
-
-    ##
-    # Write table contants to specified ElfMan
-    def write()
-      raise ArgumentError.new('elfman', "#{elfman.class} against to EIS::ElfMan") if elfman.class != ElfMan
-
-      loc = elfman.vma_to_loc @location
-      @elf.elf_out.seek loc
-
-      @data.each do |datum|
-        datum.write(@elf.elf_out)
-      end
-    end
-  end
-
-  ##
-  # An class to record where and how large a free space is. 
-  class PermissiveBlock
-    attr_reader :location, :length
-
-    ##
-    # Create a new PermisiveBlock instance
-    #
-    # There is hardly to use this class manually, leave this job to
-    # PermissiveMan.
-    def initialize location, length
-      @location = location
-      @length = length
-    end
-
-    ##
-    # Check if the given fragment overlaps with this fragment
-    #
-    # = Parameters
-    # +location+:: +Integer+ Where the fragment begin
-    # +length+:: +Integer+ How large the fragment is
-    def overlap? location, length
-      return true if @location <= location && @location + @length >= location
-      return true if @location <= location + length && @location + @length >= location + length
-      false
-    end
-
-    ##
-    # Check if the given fragment is included in theis fragment
-    def include? location, length
-      @location <= location && @location + @length >= location + length
-    end
-
-    ##
-    # Merge a fragment into this. 
-    def merge location, length
-      sta = @location
-      ter = @location + @length # where
-      fter = location + length # where the fregment ends. 
-      nter = ter > fter ? ter : fter
-      @location = location if sta > location
-      @length = nter - @location
-      self
-    end
-
-    def remove(location, length)
-      raise ArgumentError.new '[all]', 'The fragment should NOT be include by this fragment' if include? location-1, length+1
-      ter = @location + @length
-      cter = location + length
-
-      if cter < ter && cter > @location
-        @location = cter
-        @length = ter - @location
-      else
-        @length = location - @location
-      end
-      self
-    end
-
-    ##
-    # An convinient method to merge others blocks. 
-    def block_merge block
-      raise ArgumentError.new 'block', 'type against' if block.class != EIS::PermissiveBlock
-      merge block.location, block.length
-    end
-
-    ##
-    # A convinient method to check if the other block is overlaped. 
-    def block_overlap? block
-      return nil if block.class != PermissiveBlock
-      overlap? block.location, block.length
-    end
-
-    ##
-    # A convinient method to check if the other block is included 
-    # by this block.
-    def block_include? block
-      return nil if block.class != PermissiveBlock
-      include? block.location, block.length
+    def get_inst(addr)
+      @symb[addr]
     end
   end
 
@@ -394,6 +162,12 @@ module EIS
     end
   end
 
+  ##
+  # = StringAllocater
+  # A allocater accesses the permissive block manager directly to
+  # provides a more friendly string allocation methods.
+  # == Initialize
+  # Only one parameter, the permissiveman.
   class StringAllocater
     def initialize(permissiveman)
       @perm_man = permissiveman
@@ -457,58 +231,59 @@ module EIS
       4
     end
 
-    attr_accessor :data, :ref, :count
+    attr_accessor :data, :count# , :ref
 
     ##
     # Read from stream
     def read(stream)
-      @data = []
-      @ref = stream.sysread(4).unpack("L<")[0] if @elf_man.elf_base.endian == :little
-      @ref = stream.sysread(4).unpack("L>")[0] if @elf_man.elf_base.endian == :big
+      # @data = []
+      @data = stream.sysread(4).unpack("L<")[0] if @elf_man.elf_base.endian == :little
+      @data = stream.sysread(4).unpack("L>")[0] if @elf_man.elf_base.endian == :big
+      @elf_man.new_table(@elf_man.vma_to_loc(@data), @limit.call, @type)
       puts("Ref#read(): @ref = #{@ref}") if $eis_debug
     end
 
-    def readref(stream)
-      ploc = stream.pos
-      # 为读取到的指针解引用。
-      loc = @elf_man.vma_to_loc @ref # 解引用 
+    # def readref(stream)
+    #   ploc = stream.pos
+    #   # 为读取到的指针解引用。
+    #   loc = @elf_man.vma_to_loc @ref # 解引用 
         
-      # 寻址到对应位置，准备载入。
-      # --------------------------------
-      stream.seek loc
+    #   # 寻址到对应位置，准备载入。
+    #   # --------------------------------
+    #   stream.seek loc
 
-      i = 0
-      @limit.call.times do
-        tmp = @type.new
-        # begin
-          tmp.read(stream) # 载入
-        # rescue Errno::EINVAL
-        #   puts "Ref#readref(): fatal: seek failed. @#{i}"
-        #   stream.seek ploc
-        #   break
-        # end
-        puts("Ref#readref(): read[#{i}] #{tmp}") if $eis_debug
-        i += 1
-        @data << tmp # 加入数据数组
-      end
-      @elf_man.permission_man.register(loc, @data.size * @data[0].size) if $eis_shift >= 2
+    #   i = 0
+    #   @limit.call.times do
+    #     tmp = @type.new
+    #     # begin
+    #       tmp.read(stream) # 载入
+    #     # rescue Errno::EINVAL
+    #     #   puts "Ref#readref(): fatal: seek failed. @#{i}"
+    #     #   stream.seek ploc
+    #     #   break
+    #     # end
+    #     puts("Ref#readref(): read[#{i}] #{tmp}") if $eis_debug
+    #     i += 1
+    #     @data << tmp # 加入数据数组
+    #   end
+    #   @elf_man.permission_man.register(loc, @data.size * @data[0].size) if $eis_shift >= 2
 
-      stream.seek ploc
-    end
+    #   stream.seek ploc
+    # end
 
     def write(stream)
-      loc = @elf_man.vma_to_loc @ref # 获取原始位置
-      loc = @elf_man.permission_man.alloc(@data.size * @data[0].size) if $eis_shift >= 2 # 激进的指针重整策略需要重新分配指针表空间
-      raise "Virtual memory run out" if loc.nil?
+      loc = @elf_man.vma_to_loc @data # 获取原始位置
+      # loc = @elf_man.permission_man.alloc(@data.size * @data[0].size) if $eis_shift >= 2 # 激进的指针重整策略需要重新分配指针表空间
+      # raise "Virtual memory run out" if loc.nil?
       rloc = [loc].pack("L<")[0] if @elf_man.elf_base.endian == :little
       rloc = [loc].pack("L>")[0] if @elf_man.elf_base.endian == :big
       stream.syswrite(rloc)
       nloc = stream.pos # 保存当前流位置，避免后续读取／写入混乱
       
-      stream.seek loc
-      @data.each do |entry|
-        entry.write(stream)
-      end
+      # stream.seek loc
+      # @data.each do |entry|
+      #   entry.write(stream)
+      # end
 
       stream.seek nloc # 恢复流位置
     end
@@ -582,16 +357,16 @@ module EIS
       end
 
       def read(stream)
-        readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
+        # readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
         @fields.each do |key, entry|
-          readdelay << entry if entry.class == Ref
+          # readdelay << entry if entry.class == Ref
 
           entry.read(stream)
         end
 
-        readdelay.each do |entry|
-          entry.readref(stream) # 此时再解引用，这时数量限制数据必然已经读入
-        end
+        # readdelay.each do |entry|
+        #   entry.readref(stream) # 此时再解引用，这时数量限制数据必然已经读入
+        # end # 现在暂时不需要。
       end
 
       def write(stream)
