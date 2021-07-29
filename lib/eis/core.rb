@@ -1,4 +1,5 @@
 require "rexml/document"
+require "active_support/all"
 
 require "eis/bin_struct"
 require "eis/elf_man"

@@ -3,11 +3,12 @@
 ELF's binary exporting and importing helper lib.
 
 ## Installation
+Current no available
 
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'eis'
+gem "eis"
 ```
 
 And then execute:
@@ -30,7 +31,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/EIS.
+Bug reports and pull requests are welcome on GitHub at https://github.com/jitingcn/EIS.
 
 ## License
 

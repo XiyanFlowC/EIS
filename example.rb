@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-
+# run this example in development environment: `bundle exec ruby example.rb`
 require "eis"
 
 EIS::Core.eis_shift = 1 # 不允许子指针表移位
