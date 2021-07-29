@@ -46,14 +46,13 @@ module EIS
     # 请不要设为2，激进的指针重整策略现在暂不可用
     @eis_debug = nil
     class << self
-      attr_accessor :eis_shift, :eis_debug
+      attr_accessor :eis_shift, :eis_debug, :elf
     end
 
     def initialize(elf_path, path = nil, target_elf = "output.elf")
       File.new(target_elf, "w").close unless File.exist? target_elf
-      @elf = EIS::ElfMan.new elf_path
+      @elf = EIS::Core.elf = EIS::ElfMan.new elf_path
       @out_elf = File.new(target_elf, "r+b")
-      EIS::BinStruct.init(@elf)
       @path = path
       @tbls = Hash.new nil
     end
@@ -75,9 +74,9 @@ module EIS
     def read
       @tbls.each do |k, e|
         e.read
-      rescue => e
-        puts "When read #{k}: #{e}"
-        puts e.backtrace if EIS::Core.eis_debug
+      rescue => err
+        puts "When read #{k}: #{err}"
+        puts err.backtrace if EIS::Core.eis_debug
       end
       @elf.permission_man.global_merge
     end

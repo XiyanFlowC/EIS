@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # run this example in development environment: `bundle exec ruby example.rb`
 require "eis"
+require "pry"
 
 EIS::Core.eis_shift = 1 # 不允许子指针表移位
 EIS::Core.eis_debug = true

@@ -23,15 +23,55 @@ module EIS
   # and register the id, type and controls (as nil if unused) as a
   # Field into class holds
   class BinStruct
-    @@types = Hash.new nil
+    def initialize
+      @fields = {}
+      fields_register_table.each do |name, cnt|
+        @fields[name] = cnt.type.new(cnt.count, [self] + cnt.control)
+      end
+    end
 
-    ##
-    # Initializae of this basic
-    def self.init(elf)
-      @@elf = elf
+    def size
+      ret = 0
+      @fields.each do |k, e|
+        ret += e.size
+      end
+
+      ret
+    end
+
+    def fields
+      @fields.dup
+    end
+
+    def read(stream)
+      # readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
+      @fields.each do |key, entry|
+        # readdelay << entry if entry.class == Ref
+
+        entry.read(stream)
+      end
+
+      # readdelay.each do |entry|
+      #   entry.readref(stream) # 此时再解引用，这时数量限制数据必然已经读入
+      # end # 现在暂时不需要。
+    end
+
+    def write(stream)
+      @fields.each do |key, entry|
+        entry.write(stream)
+      end
+    end
+
+    def fields_register_table
+      self.class.fields_register_table
     end
 
     class << self
+      attr_accessor :fields_register_table
+
+      def elf
+        EIS::Core.elf
+      end
       # --------------------------------
       # 必须接受两个参数，按照约定，除了 name 以外都是可选的。
       # 第二项必需是数量，此后的选项不做要求，请自行约定。
@@ -47,11 +87,18 @@ module EIS
 
       def string(name, *params)
         count = handle_count(params)
-        register_field(name, count, String, [@@elf.string_alloc, @@elf])
+        register_field(name, count, EIS::String, [elf.string_alloc, elf])
       end
 
       def ref(type, name, count)
-        register_field(name, count, Ref, [@@types[type.to_s], @@elf])
+        register_field(name, count, EIS::Ref, [type.to_s.constantize, elf])
+      end
+
+      def handle_count(params)
+        return 1 if params.count == 0
+        raise ArgumentError.new "count", "count must be a number but #{params[0].class}" if params[0].class != Integer
+
+        params[0]
       end
 
       def register_field(name, count, type, controls)
@@ -64,76 +111,9 @@ module EIS
             @fields["#{name}"].data = value
           end
         EOD
-
-        fieldsRegisterTable[name.to_s] = Field.new(type, count, controls)
+        @fields_register_table ||= {}
+        @fields_register_table[name.to_s] = Field.new(type, count, controls)
       end
-
-      def handle_count(params)
-        return 1 if params.count == 0
-        raise ArgumentError.new "count", "count must be a number but #{params[0].class}" if params[0].class != Integer
-
-        params[0]
-      end
-
-      def new_child
-        ret = Class.new EIS::ElfMan
-        ret.class_variable_set "@@fieldsRegisterTable", {}
-        ret
-      end
-    end
-
-    def self.inherited(child)
-      @@types[child.to_s] = child # register claimed types, so that the other children can find each other
-      child.class_variable_set "@@fieldsRegisterTable", Hash.new(nil) # this val shouldn't impact the parent
-      # child.class_variable_set '@@elf', @@elf
-      child.class_eval <<-EOD, __FILE__, __LINE__ + 1
-        def initialize
-          @fields = Hash.new
-          @@fieldsRegisterTable.each do |name, cnt|
-            @fields[name] = cnt.type.new(cnt.count, [self] + cnt.control)
-          end
-        end
-  
-        def size
-          ret = 0
-          @fields.each do |k,e|
-            ret += e.size
-          end
-  
-          ret
-        end
-  
-        def self.elf
-          @@elf
-        end
-  
-        def fields
-          @fields.dup
-        end
-  
-        def self.fieldsRegisterTable
-          @@fieldsRegisterTable
-        end
-  
-        def read(stream)
-          # readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
-          @fields.each do |key, entry|
-            # readdelay << entry if entry.class == Ref
-  
-            entry.read(stream)
-          end
-  
-          # readdelay.each do |entry|
-          #   entry.readref(stream) # 此时再解引用，这时数量限制数据必然已经读入
-          # end # 现在暂时不需要。
-        end
-  
-        def write(stream)
-          @fields.each do |key, entry|
-            entry.write(stream)
-          end
-        end
-      EOD
     end
   end
 end
