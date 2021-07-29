@@ -12,13 +12,6 @@ require "eis/symbol_man"
 require "eis/utils"
 
 module EIS
-  @eis_shift = 1 # the shift aggressively 0 none, 1 str, 2 ptr
-  # 请不要设为2，激进的指针重整策略现在暂不可用
-  @eis_debug = nil
-  class << self
-    attr_accessor :eis_shift, :eis_debug
-  end
-
   ##
   # A _Struct_ to store the meta data of fields in _BinStruct_
   #
@@ -49,6 +42,13 @@ module EIS
   # tbl.each {|x| x.Length = 0 if x.Length >= 3000}
   # </tt>
   class Core
+    @eis_shift = 1 # the shift aggressively 0 none, 1 str, 2 ptr
+    # 请不要设为2，激进的指针重整策略现在暂不可用
+    @eis_debug = nil
+    class << self
+      attr_accessor :eis_shift, :eis_debug
+    end
+
     def initialize(elf_path, path = nil, target_elf = "output.elf")
       File.new(target_elf, "w").close unless File.exist? target_elf
       @elf = EIS::ElfMan.new elf_path
