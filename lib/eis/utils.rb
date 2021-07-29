@@ -238,7 +238,7 @@ module EIS
     protected
 
     def fetch_string(stream)
-      puts "fetching string at #{stream.pos.to_s(16)}" if $eis_debug
+      puts "fetching string at #{stream.pos.to_s(16)}" if EIS::Core.eis_debug
       ret = ""
       ch = stream.sysread(1)
       while ch != "\0"

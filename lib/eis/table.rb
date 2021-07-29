@@ -57,7 +57,7 @@ module EIS
         rescue Errno::EINVAL
           raise "Table#read(): fatal: seek failed. @#{i}"
         end
-        puts("Table#read(): read #{inst}") if $eis_debug
+        puts("Table#read(): read #{inst}") if EIS::Core.eis_debug
         @data << inst
         i += 1
         yield(inst) if block_given?

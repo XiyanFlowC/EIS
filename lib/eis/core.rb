@@ -11,8 +11,12 @@ require "eis/symbol_man"
 require "eis/utils"
 
 module EIS
-  $eis_shift = 1 # the shift aggressively 0 none, 1 str, 2 ptr
+  @eis_shift = 1 # the shift aggressively 0 none, 1 str, 2 ptr
   # 请不要设为2，激进的指针重整策略现在暂不可用
+  @eis_debug = nil
+  class << self
+    attr_accessor :eis_shift, :eis_debug
+  end
 
   ##
   # A _Struct_ to store the meta data of fields in _BinStruct_
@@ -72,7 +76,7 @@ module EIS
         e.read
       rescue => e
         puts "When read #{k}: #{e}"
-        puts e.backtrace if $eis_debug
+        puts e.backtrace if EIS::Core.eis_debug
       end
       @elf.permission_man.global_merge
     end

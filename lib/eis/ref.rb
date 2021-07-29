@@ -32,7 +32,7 @@ module EIS
       @data = stream.sysread(4).unpack1("L<") if @elf_man.elf_base.endian == :little
       @data = stream.sysread(4).unpack1("L>") if @elf_man.elf_base.endian == :big
       @elf_man.new_table(@elf_man.vma_to_loc(@data), @limit.call, @type)
-      puts("Ref#read(): @ref = #{@ref}") if $eis_debug
+      puts("Ref#read(): @ref = #{@ref}") if EIS::Core.eis_debug
     end
 
     # def readref(stream)
