@@ -3,6 +3,7 @@
 require "eis"
 
 EIS::Core.eis_shift = 1 # 不允许子指针表移位
+EIS::Core.eis_debug = true
 core = EIS::Core.new("tmp/SLPS_256.04", "tmp/jpn.xml", "tmp/output.elf") # EIS综合管理
 module EIS
   class String

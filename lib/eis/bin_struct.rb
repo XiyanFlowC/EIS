@@ -1,3 +1,5 @@
+require "eis/types"
+
 module EIS
   ##
   # The basic unit to dear with the exportation and importation
@@ -29,8 +31,55 @@ module EIS
       @@elf = elf
     end
 
-    def self.ref(type, name, count)
-      register_field(name, count, Ref, [@@types[type.to_s], @@elf])
+    class << self
+      # --------------------------------
+      # 必须接受两个参数，按照约定，除了 name 以外都是可选的。
+      # 第二项必需是数量，此后的选项不做要求，请自行约定。
+      # --------------------------------
+      types = %w[int8 int16 int32 int64 u_int8 u_int16 u_int32 u_int64]
+      types.each do |type|
+        define_method :"#{type}" do |name, *params|
+          count = handle_count(params)
+
+          register_field(name, count, "EIS::#{type.capitalize}".constantize, [])
+        end
+      end
+
+      def string(name, *params)
+        count = handle_count(params)
+        register_field(name, count, String, [@@elf.string_alloc, @@elf])
+      end
+
+      def ref(type, name, count)
+        register_field(name, count, Ref, [@@types[type.to_s], @@elf])
+      end
+
+      def register_field(name, count, type, controls)
+        class_eval <<-EOD, __FILE__, __LINE__ + 1
+          def #{name}
+            @fields["#{name}"].data
+          end
+  
+          def #{name}=(value)
+            @fields["#{name}"].data = value
+          end
+        EOD
+
+        fieldsRegisterTable[name.to_s] = Field.new(type, count, controls)
+      end
+
+      def handle_count(params)
+        return 1 if params.count == 0
+        raise ArgumentError.new "count", "count must be a number but #{params[0].class}" if params[0].class != Integer
+
+        params[0]
+      end
+
+      def new_child
+        ret = Class.new EIS::ElfMan
+        ret.class_variable_set "@@fieldsRegisterTable", {}
+        ret
+      end
     end
 
     def self.inherited(child)

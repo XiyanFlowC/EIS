@@ -9,7 +9,7 @@ require "eis/permissive_man"
 require "eis/ref"
 require "eis/string_allocator"
 require "eis/symbol_man"
-require "eis/utils"
+require "eis/types"
 
 module EIS
   ##
