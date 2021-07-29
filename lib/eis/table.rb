@@ -4,7 +4,7 @@ module EIS
   #
   # = Purpose
   # * Record the position (and the size) of a structure
-  # * Provides convinient methods to extract this structure array
+  # * Provides convenient methods to extract this structure array
   # * Provides enough free space so that user can change it's behavior
   #
   # = Example
@@ -39,7 +39,7 @@ module EIS
     attr_reader :location, :count
 
     ##
-    # Read table contant from specified ElfMan
+    # Read table contents from specified ElfMan
     #
     # = Code Block
     # A block with one parameter which recieve the read
