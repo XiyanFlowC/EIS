@@ -1,4 +1,4 @@
-require 'eis/permissive_block'
+require "eis/permissive_block"
 
 module EIS
   ##

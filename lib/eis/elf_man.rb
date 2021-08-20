@@ -53,7 +53,7 @@ module EIS
     # The result should be fine unless there are overlappings between
     # two PT_LOPD segments, which should be never happened.
     def vma_to_loc(value)
-      @elf_base.segments_by_type(:PT_LOAD).each do | entry |
+      @elf_base.segments_by_type(:PT_LOAD).each do |entry|
         if entry.vma_in? value
           return entry.vma_to_offset(value)
         end
@@ -64,8 +64,8 @@ module EIS
     ##
     # Return the virtual memory address of inputted file offset.
     def loc_to_vma(value)
-      @elf_base.segments_by_type(:PT_LOAD).each do | e |
-        if e.offset_in? value then return e.offset_to_vma value
+      @elf_base.segments_by_type(:PT_LOAD).each do |e|
+        if e.offset_in? value then return e.offset_to_vma value end
       end
       nil
     end
@@ -96,7 +96,7 @@ module EIS
     # +template_str+:: The unpack template string.
     # +mode+:: _named_ The mode. Can be ':offset' or ':vma'.
     # +shiftable+:: _named_ Whether the data can be shifted. If so, the area will be marked in the permission_man.
-    # 
+    #
     # == Examples
     # <tt>elf.fetch_data(0x25ff20, "hhhhiil", mode: :vma)</tt>
     # <tt>elf.fetch_data(0x255ffc, "hhhh", mode: :offset)</tt>
@@ -104,70 +104,70 @@ module EIS
     def fetch_data(location, template_str, mode: :vma, shiftable: false)
       @base_stream.seek(location) if mode == :offset
       @base_stream.seek(vma_to_loc(location)) if mode == :vma
-      
-      unpackstr = String.new
+
+      unpackstr = ""
       length = 0
       refs = []
       idx = 0
       template_str.each_char do |c|
         # unsigned
-        if c == 'I'
+        if c == "I"
           length += 4
-          unpackstr << 'L>' if @elf_base.endian == :big
-          unpackstr << 'L<' if @elf_base.endian == :little
+          unpackstr << "L>" if @elf_base.endian == :big
+          unpackstr << "L<" if @elf_base.endian == :little
         end
-        if c == 'H'
+        if c == "H"
           length += 2
-          unpackstr << 'S>' if @elf_base.endian == :big
-          unpackstr << 'S<' if @elf_base.endian == :little
+          unpackstr << "S>" if @elf_base.endian == :big
+          unpackstr << "S<" if @elf_base.endian == :little
         end
-        if c == 'C'
+        if c == "C"
           length += 1
-          unpackstr << 'C'
+          unpackstr << "C"
         end
-        if c == 'L'
+        if c == "L"
           length += 8
-          unpackstr << 'Q>' if @elf_base.endian == :big
-          unpackstr << 'Q<' if @elf_base.endian == :little
+          unpackstr << "Q>" if @elf_base.endian == :big
+          unpackstr << "Q<" if @elf_base.endian == :little
         end
         # signed
-        if c == 'i'
+        if c == "i"
           length += 4
-          unpackstr << 'l>' if @elf_base.endian == :big
-          unpackstr << 'l<' if @elf_base.endian == :little
+          unpackstr << "l>" if @elf_base.endian == :big
+          unpackstr << "l<" if @elf_base.endian == :little
         end
-        if c == 'h'
+        if c == "h"
           length += 2
-          unpackstr << 's>' if @elf_base.endian == :big
-          unpackstr << 's<' if @elf_base.endian == :little
+          unpackstr << "s>" if @elf_base.endian == :big
+          unpackstr << "s<" if @elf_base.endian == :little
         end
-        if c == 'c'
+        if c == "c"
           length += 1
-          unpackstr << 'c'
+          unpackstr << "c"
         end
-        if c == 'l'
+        if c == "l"
           length += 8
-          unpackstr << 'q>' if @elf_base.endian == :big
-          unpackstr << 'q<' if @elf_base.endian == :little
+          unpackstr << "q>" if @elf_base.endian == :big
+          unpackstr << "q<" if @elf_base.endian == :little
         end
         # refer auto conv
-        if c == 'r' || c == 'R'
+        if c == "r" || c == "R"
           t = -1
-          if @elf_base.class == 32
-            t = 0 if c == 'r'
-            t = 1 if c == 'R'
-          elsif @elf_base.class == 64
-            t = 1 if c == 'R'
-            t = 0 if c == 'r'
+          if @elf_base.instance_of?(32)
+            t = 0 if c == "r"
+            t = 1 if c == "R"
+          elsif @elf_base.instance_of?(64)
+            t = 1 if c == "R"
+            t = 0 if c == "r"
           end
           if t == 1
             length += 8
-            unpackstr << 'Q>' if @elf_base.endian == :big
-            unpackstr << 'Q<' if @elf_base.endian == :little
+            unpackstr << "Q>" if @elf_base.endian == :big
+            unpackstr << "Q<" if @elf_base.endian == :little
           else
             length += 4
-            unpackstr << 'L>' if @elf_base.endian == :big
-            unpackstr << 'L<' if @elf_base.endian == :little
+            unpackstr << "L>" if @elf_base.endian == :big
+            unpackstr << "L<" if @elf_base.endian == :little
           end
           refs << idx
         end
