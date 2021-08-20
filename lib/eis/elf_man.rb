@@ -1,4 +1,5 @@
 require "elftools"
+require "eis/permissive_man"
 require "eis/table"
 
 module EIS
@@ -6,28 +7,6 @@ module EIS
   # The main class which holds the ELF and interacts with elftools.
   #
   # Init it first before anything you want to do with this module.
-  #
-  # = Initializer's Parameters
-  # The param +elf_file+ can be _File_, _ELFTools::ELFFile_, or _String_.
-  # [<tt>File</tt>] In this case, the programme will recognize it and try
-  #                 to pass this stream to elftools
-  #
-  # [<tt>ELFTools::ELFFile</tt>] *discard* In this case, the programme will store the
-  #                              Object directly
-  #
-  # [<tt>String</tt>] In this case, the programme will open the given *path*
-  #                   with the mode 'rb' and passes the stream to elftools.
-  #
-  # = Example
-  # <tt>foo = EIS::ElfMan.new(File.new('bar.elf', 'rb'))</tt>
-  #
-  # and this form is also fine:
-  #
-  # <tt>foo = EIS::ElfMan.new('bar.elf', 'rb')</tt>
-  #
-  # Then you can use it like:
-  #
-  # <tt>foo.extract(bar)</tt>
   class ElfMan
     ##
     # Create an instance of ElfMan.
@@ -35,10 +14,10 @@ module EIS
     # = Parameter
     # +elf_file+:: Refer to _ElfMan_'s Initializer's Parameters section.
     def initialize(elf_file)
-      read(elf_file)
+      bind!(elf_file)
       @permission_man = PermissiveMan.new
-      @string_alloc = StringAllocator.new(@permission_man)
-      @symbol_man = SymbolMan.new self
+      # @string_alloc = StringAllocator.new(@permission_man)
+      # @symbol_man = SymbolMan.new self
     end
 
     ##
@@ -48,7 +27,7 @@ module EIS
     #
     # = Parameter
     # +elf_file+:: Target elf stream, can be _File_ or _String_ (as a path).
-    def read(elf_file)
+    def bind!(elf_file)
       # @elf_base = elf_file if elf_file.class == ELFTools::ELFFile
       if elf_file.instance_of?(File)
         @elf_base = ELFTools::ELFFile.new(elf_file)
@@ -58,27 +37,150 @@ module EIS
       raise ArgumentError.new "elf_file", "elf_file must be File or String" if @elf_base.nil?
     end
 
+    # The base of the module, ELFTools::ELFFile
     attr_reader :elf_base
+    # The manager to record where is usable for Refered tables.
     attr_reader :permission_man
-    attr_reader :string_alloc
-    attr_reader :symbol_man
+    # The base stream of binded elf file.
     attr_reader :base_stream
+    # The stream of output elf file.
     attr_accessor :elf_out
+    # attr_reader :string_alloc
 
     ##
-    # Get a new table related to this class
-    def new_table(location, count, type)
-      rst = Table.new(location, count, type, self)
-      @symbol_man.reg_symb(location, rst)
-      rst
-    end
-
+    # Return first matched segment corresponding to input-value
+    #
+    # The result should be fine unless there are overlappings between
+    # two PT_LOPD segments, which should be never happened.
     def vma_to_loc(value)
-      @elf_base.segment_by_type(:PT_LOAD).vma_to_offset value
+      @elf_base.segments_by_type(:PT_LOAD).each do | entry |
+        if entry.vma_in? value
+          return entry.vma_to_offset(value)
+        end
+      end
+      nil
     end
 
+    ##
+    # Return the virtual memory address of inputted file offset.
     def loc_to_vma(value)
-      @elf_base.segment_by_type(:PT_LOAD).offset_to_vma value
+      @elf_base.segments_by_type(:PT_LOAD).each do | e |
+        if e.offset_in? value then return e.offset_to_vma value
+      end
+      nil
+    end
+
+    ##
+    # = fetch_data
+    # Process with the given template_str and return the result
+    # unpacked from the base stream.
+    #
+    # The template_str should be a string that contains only characters
+    # l, i, h, c for signed longlong, long, short, and char,
+    # as well as L, I, H, C for unsigned longlong, long, short, and char.
+    #
+    # And, for pointer support, if the elf is 32-bit recognize r as a
+    # 32-bit pointer and R as a 64-bit pointer. Or the elf is 64-bit, r
+    # will represent 64-bit pointer and R for 32-bit pointer. If the pointer
+    # can be resolve, the value will be the offset of the file, or be nil.
+    # In addition, if the pointer is nullable, [Unimplemented].
+    #
+    # This subroutine will translate them to corresponding unpack string
+    # with endian information from ELFTools::ELFFile. And seek, read and
+    # unpack data from the basic stream.
+    #
+    # So this subroutine will change the stream position.
+    #
+    # == Parameters
+    # +location+:: The location, which will refer to vma or offset is depends on the mode.
+    # +template_str+:: The unpack template string.
+    # +mode+:: _named_ The mode. Can be ':offset' or ':vma'.
+    # +shiftable+:: _named_ Whether the data can be shifted. If so, the area will be marked in the permission_man.
+    # 
+    # == Examples
+    # <tt>elf.fetch_data(0x25ff20, "hhhhiil", mode: :vma)</tt>
+    # <tt>elf.fetch_data(0x255ffc, "hhhh", mode: :offset)</tt>
+    # <tt>elf.fetch_data(0x1000, "llll")</tt>
+    def fetch_data(location, template_str, mode: :vma, shiftable: false)
+      @base_stream.seek(location) if mode == :offset
+      @base_stream.seek(vma_to_loc(location)) if mode == :vma
+      
+      unpackstr = String.new
+      length = 0
+      refs = []
+      idx = 0
+      template_str.each_char do |c|
+        # unsigned
+        if c == 'I'
+          length += 4
+          unpackstr << 'L>' if @elf_base.endian == :big
+          unpackstr << 'L<' if @elf_base.endian == :little
+        end
+        if c == 'H'
+          length += 2
+          unpackstr << 'S>' if @elf_base.endian == :big
+          unpackstr << 'S<' if @elf_base.endian == :little
+        end
+        if c == 'C'
+          length += 1
+          unpackstr << 'C'
+        end
+        if c == 'L'
+          length += 8
+          unpackstr << 'Q>' if @elf_base.endian == :big
+          unpackstr << 'Q<' if @elf_base.endian == :little
+        end
+        # signed
+        if c == 'i'
+          length += 4
+          unpackstr << 'l>' if @elf_base.endian == :big
+          unpackstr << 'l<' if @elf_base.endian == :little
+        end
+        if c == 'h'
+          length += 2
+          unpackstr << 's>' if @elf_base.endian == :big
+          unpackstr << 's<' if @elf_base.endian == :little
+        end
+        if c == 'c'
+          length += 1
+          unpackstr << 'c'
+        end
+        if c == 'l'
+          length += 8
+          unpackstr << 'q>' if @elf_base.endian == :big
+          unpackstr << 'q<' if @elf_base.endian == :little
+        end
+        # refer auto conv
+        if c == 'r' || c == 'R'
+          t = -1
+          if @elf_base.class == 32
+            t = 0 if c == 'r'
+            t = 1 if c == 'R'
+          elsif @elf_base.class == 64
+            t = 1 if c == 'R'
+            t = 0 if c == 'r'
+          end
+          if t == 1
+            length += 8
+            unpackstr << 'Q>' if @elf_base.endian == :big
+            unpackstr << 'Q<' if @elf_base.endian == :little
+          else
+            length += 4
+            unpackstr << 'L>' if @elf_base.endian == :big
+            unpackstr << 'L<' if @elf_base.endian == :little
+          end
+          refs << idx
+        end
+        idx += 1
+      end
+
+      @permission_man.register(location, length)
+      ans = @base_stream.sysread(length).unpack(unpackstr)
+
+      refs.each do |refi|
+        ans[refi] = vma_to_loc ans[refi]
+      end
+      ans
     end
   end
 end

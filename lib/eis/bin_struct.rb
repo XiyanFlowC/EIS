@@ -81,7 +81,7 @@ module EIS
         define_method :"#{type}" do |name, *params|
           count = handle_count(params)
 
-          register_field(name, count, "EIS::#{type.capitalize}".constantize, [])
+          register_field(name, count, "EIS::#{type.camelcase}".constantize, [])
         end
       end
 

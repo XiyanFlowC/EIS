@@ -1,3 +1,5 @@
+require 'eis/permissive_block'
+
 module EIS
   ##
   # PermissiveBlock Manager

@@ -2,15 +2,14 @@ module EIS
   ##
   # Table is a class to record where and how large a structure array is.
   #
-  # = Purpose
+  # == Purpose
   # * Record the position (and the size) of a structure
   # * Provides convenient methods to extract this structure array
   # * Provides enough free space so that user can change it's behavior
   #
-  # = Example
-  # <tt>tbl = Table.new 0x2ff59d3, 32, Dialog
-  # tbl.elf = elf # these two lines are equal to elf.new_table 0x2ff59d3, 32, Dialog
-  # tbl.extract do |entry|
+  # == Example
+  # <tt>tbl = Table.new 0x2ff59d3, 32, Dialog, elf
+  # tbl.read do |entry|
   #   puts entry.id, entry.text
   # end
   #
@@ -29,8 +28,10 @@ module EIS
     # +location+::  +Number+ A number to record where the table located.
     # +count+::     +Number+ How many entries this table contains.
     # +type+::      +EIS::BinStruct+ The type of entry.
-    def initialize(location, count, type, elf_man)
-      @location = location
+    def initialize(location, count, type, elf_man, is_vma: true)
+      raise ArgumentError.new("elf_man", "#{@elf.class} against to EIS::ElfMan") if elf_man.class != ElfMan
+
+      @location = mode == is_vma ? elf_man.vma_to_loc(location) : location
       @count = count
       @type = type
       @elf = elf_man
@@ -45,10 +46,10 @@ module EIS
     # A block with one parameter which recieve the read
     # ENTRY datum instance.
     def read
-      loc = @elf.vma_to_loc @location
+      # loc = @elf.vma_to_loc @location
       @data = []
 
-      @elf.base_stream.seek loc
+      @elf.base_stream.seek @location
       i = 0
       @count.times do
         begin
@@ -66,12 +67,19 @@ module EIS
 
     attr_reader :data
 
+    ##
+    # Set data to this table. If the data size is mismatch
+    # with the recored size, raise ArgumentError.
     def data=(value)
       raise ArgumentError.new "value", "Size error. (#{value.size} against #{@count})" if value.size != @count
 
       @data = value
     end
 
+    ##
+    # Force the table accept the data whose size is not equal to
+    # the recored size.
+    # NOTE: Will not update size info in the same time.
     def set_data!(value)
       @data = value
     end
@@ -79,10 +87,8 @@ module EIS
     ##
     # Write table contents to specified ElfMan
     def write
-      raise ArgumentError.new("elfman", "#{@elf.class} against to EIS::ElfMan") if @elf.class != ElfMan
-
-      loc = @elf.vma_to_loc @location
-      @elf.elf_out.seek loc
+      # loc = @elf.vma_to_loc @location
+      @elf.elf_out.seek @location
 
       @data.each do |datum|
         datum.write(@elf.elf_out)

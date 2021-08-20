@@ -22,8 +22,7 @@ module EIS
 
   ##
   # = Exporting and Importing Core Class
-  # Provides an easy way to initialize the EIS environmet.
-  # Also provides a way to save and load to/from files so that
+  # Provides a way to save and load to/from files so that
   # external tools can make changes to the contents so that
   # the EISCore can load modified contents and imports the
   # modification to the elf.
@@ -61,12 +60,12 @@ module EIS
     # Declare a new table
     #
     # = Parameters
-    # * _name_: table's name.
-    # * _location_: table's start memory address.
-    # * _length_: the count of entries in the table.
-    # * _type_: the entries' type.
+    # +name+:: table's name.
+    # +location+:: table's start memory address.
+    # +length+:: the count of entries in the table.
+    # +type+:: the entries' type.
     def table(name, location, length, type)
-      @tbls[name.to_s] = @elf.new_table(location, length, type)
+      @tbls[name.to_s] = Table.new(location, length, type, @elf)
     end
 
     ##
