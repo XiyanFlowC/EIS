@@ -20,6 +20,7 @@ module EIS
   # The registered method should handle:
   # * name
   # * length
+  #
   # and register the id, type and controls (as nil if unused) as a
   # Field into class holds
   class BinStruct
@@ -41,6 +42,20 @@ module EIS
 
     def fields
       @fields.dup
+    end
+
+    def each_data
+      return nil unless block_given?
+      @fields.each do |_, entry|
+        yield entry
+      end
+    end
+
+    def each_ref
+      return nil unless block_given?
+      @fields.each do |_, entry|
+        yield entry if entry.is_a? EIS::Ref
+      end
     end
 
     def read(stream)
@@ -69,9 +84,9 @@ module EIS
     class << self
       attr_accessor :fields_register_table
 
-      def elf
-        EIS::Core.elf
-      end
+      # def elf
+      #   EIS::Core.elf
+      # end
       # --------------------------------
       # 必须接受两个参数，按照约定，除了 name 以外都是可选的。
       # 第二项必需是数量，此后的选项不做要求，请自行约定。
@@ -85,13 +100,15 @@ module EIS
         end
       end
 
+      attr_accessor :elf, :string_allocator
+
       def string(name, *params)
         count = handle_count(params)
-        register_field(name, count, EIS::String, [elf.string_alloc, elf])
+        register_field(name, count, EIS::String, [EIS::BinStruct.string_allocator, EIS::BinStruct.elf])
       end
 
       def ref(type, name, count)
-        register_field(name, count, EIS::Ref, [type.to_s.constantize, elf])
+        register_field(name, count, EIS::Ref, [type.to_s.constantize, EIS::BinStruct.elf])
       end
 
       def handle_count(params)
