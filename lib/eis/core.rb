@@ -54,6 +54,11 @@ module EIS
       @out_elf = File.new(target_elf, "r+b")
       @path = path
       @tbls = Hash.new nil
+      @permission_man = PermissiveMan.new
+      @string_allocator = StringAllocator.new @permission_man
+
+      EIS::BinStruct.elf = @elf
+      EIS::BinStruct.string_allocator = @string_allocator
     end
 
     ##
@@ -71,13 +76,27 @@ module EIS
     ##
     # Fetch data from elf.
     def read
+      refs = []
       @tbls.each do |k, e|
         e.read
+        e.each_ref do |ref| # Add refered table to refs so that can read it later.
+          refs << ref unless @tbls.has_value? ref.data
+        end
       rescue => err
         puts "When read #{k}: #{err}"
         puts err.backtrace if EIS::Core.eis_debug
       end
-      @elf.permission_man.global_merge
+      until refs.empty? # Read all refered table.
+        refs.each do |ref|
+          @tbls["implicit_#{ref.ref.to_s(16).upcase}"] = ref.data
+          ref.data.read
+          ref.data.each_ref do |iref|
+            refs << iref unless @tbls.has_value? iref.data
+          end
+          refs.delete ref
+        end
+      end
+      @permission_man.global_merge
     end
 
     def select(name)
@@ -176,7 +195,7 @@ module EIS
             f.add_attribute("type", "Ref")
             # f.add_attribute('refval', v.ref.to_s(16).upcase)
             f.add_attribute("limiter", v.count.to_s)
-            f.add_text v.data.to_s(16)
+            f.add_text v.ref.to_s(16).upcase
             # do_save f, v
           elsif v.data.instance_of?(Array)
             f.add_attribute("type", "Array")

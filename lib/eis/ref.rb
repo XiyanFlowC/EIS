@@ -1,6 +1,9 @@
+require "eis/table"
+
 module EIS
   ##
-  # Pointer deref, co-operate with BinStruct
+  # Pointer deref, co-operate with BinStruct, Core, Table.
+  # It's really a messy but I have no ablility to solve it.
   class Ref
     ##
     # Create a new Ref type.
@@ -23,15 +26,15 @@ module EIS
       4
     end
 
-    attr_accessor :data, :count # , :ref
+    attr_accessor :data, :ref , :count # , :ref
 
     ##
     # Read from stream
     def read(stream)
       # @data = []
-      @data = stream.sysread(4).unpack1("L<") if @elf_man.elf_base.endian == :little
-      @data = stream.sysread(4).unpack1("L>") if @elf_man.elf_base.endian == :big
-      @elf_man.new_table(@elf_man.vma_to_loc(@data), @limit.call, @type)
+      @ref = stream.sysread(4).unpack1("L<") if @elf_man.elf_base.endian == :little
+      @ref = stream.sysread(4).unpack1("L>") if @elf_man.elf_base.endian == :big
+      @data = Table.new(@ref, @limit.call, @type, @elf_man, is_vma: true)
       puts("Ref#read(): @ref = #{@ref}") if EIS::Core.eis_debug
     end
 
@@ -72,6 +75,7 @@ module EIS
       stream.syswrite(rloc)
       nloc = stream.pos # 保存当前流位置，避免后续读取／写入混乱
 
+      @data.write stream
       # stream.seek loc
       # @data.each do |entry|
       #   entry.write(stream)

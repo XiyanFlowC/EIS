@@ -1,3 +1,6 @@
+require "eis/ref"
+require "eis/bin_struct"
+
 module EIS
   ##
   # Table is a class to record where and how large a structure array is.
@@ -31,10 +34,28 @@ module EIS
     def initialize(location, count, type, elf_man, is_vma: true)
       raise ArgumentError.new("elf_man", "#{@elf.class} against to EIS::ElfMan") if elf_man.class != ElfMan
 
-      @location = mode == is_vma ? elf_man.vma_to_loc(location) : location
+      @location = is_vma ? elf_man.vma_to_loc(location) : location
       @count = count
       @type = type
       @elf = elf_man
+    end
+
+    ##
+    # Get the total size of this table.
+    def size
+      @type.size * @count
+    end
+
+    def eql? other
+      other.location == @location && other.count == @count
+    end
+
+    def equal? other
+      eql? other
+    end
+
+    def == other
+      eql? other
     end
 
     attr_reader :location, :count
@@ -62,6 +83,31 @@ module EIS
         @data << inst
         i += 1
         yield(inst) if block_given?
+      end
+    end
+
+    def each
+      if block_given?
+        @data.each do |e|
+          yield e
+        end
+      end
+    end
+
+    ##
+    # Call the given block for each ref in the table.
+    # Including the refs in every BinStruct's instances.
+    def each_ref
+      if block_given?
+        @data.each do |e|
+          if e.is_a? EIS::BinStruct
+            e.each_ref do |ref|
+              yield ref
+            end
+          elsif e.is_a? EIS::Ref
+            yield e
+          end
+        end
       end
     end
 
