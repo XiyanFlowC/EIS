@@ -17,7 +17,7 @@ module EIS
     # * <tt>controls[2]</tt> The _ElfMan_ (for vma-loc calc)
     def initialize(count, controls)
       @type = controls[1]
-      @count = count
+      @limiter = count
       @limit = count.instance_of?(Symbol) ? controls[0].method(count) : -> { count }
       @elf_man = controls[2]
     end
@@ -26,7 +26,12 @@ module EIS
       4
     end
 
-    attr_accessor :data, :ref , :count # , :ref
+    def count
+      1
+    end
+
+    attr_reader :limiter
+    attr_accessor :data, :ref # , :count # , :ref
 
     ##
     # Read from stream

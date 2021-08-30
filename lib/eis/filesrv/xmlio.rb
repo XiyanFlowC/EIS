@@ -26,9 +26,10 @@ module EIS
           f = entry.add_element(k)
           if v.instance_of?(Ref)
             f.add_attribute("type", "Ref")
-            # f.add_attribute('refval', v.ref.to_s(16).upcase)
-            f.add_attribute("limiter", v.count.to_s)
-            f.add_text v.ref.to_s(16).upcase
+            # TODO: once the Ref enhanced, change to do_save for human readablity.
+            f.add_attribute("refval", v.ref.to_s(16).upcase)
+            f.add_attribute("limiter", v.limiter.to_s)
+            # f.add_text v.ref.to_s(16).upcase
             # do_save f, v
           elsif v.data.instance_of?(Array)
             f.add_attribute("type", "Array")
@@ -44,7 +45,7 @@ module EIS
         end
       end
     end
-    
+
     ##
     # Save data to file.
     def save
@@ -94,14 +95,18 @@ module EIS
               tmp = []
               fld.each_element do |entry|
                 if fld["base"].include? "Int"
-                  tmp << entry.text.splite.to_i
+                  textarr = entry.text.split ", "
+                  textarr.each do |datum|
+                    tmp << datum.to_i
+                  end
                 else
                   raise "FIXME: Not Implement Yet"
                 end
               end
               cnt.send("#{fld.name}=", tmp)
             elsif fld.attributes["type"] == "Ref"
-              cnt.send("#{fld.name}=", fld.text.strip.to_i(16))
+              # try implement a table manager so to make the table ref is unique.
+              cnt.send("#{fld.name}=", fld["refval"].strip.to_i(16))
             else
               cnt.send("#{fld.name}=", fld.text.strip)
             end
@@ -112,5 +117,4 @@ module EIS
       end
     end
   end
-  
 end

@@ -40,6 +40,10 @@ module EIS
       @elf = elf_man
     end
 
+    def to_s
+      "Table of #{@elf}, located at #{@location} with #{@count} entries about #{@type}"
+    end
+
     ##
     # Get the total size of this table.
     def size

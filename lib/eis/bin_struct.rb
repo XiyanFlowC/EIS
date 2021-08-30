@@ -31,10 +31,17 @@ module EIS
       end
     end
 
+    def to_s
+      ans = "#{self.class.name} :\n"
+      @fields.each do |k, e|
+        ans << "#{e.class.name}[#{e.size}] #{k} = #{e.data}\n"
+      end
+    end
+
     def size
       ret = 0
       @fields.each do |k, e|
-        ret += e.size
+        ret += e.size * e.count
       end
 
       ret

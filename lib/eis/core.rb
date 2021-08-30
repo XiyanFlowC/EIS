@@ -82,13 +82,14 @@ module EIS
         e.read
         e.each_ref do |ref| # Add refered table to refs so that can read it later.
           refs << ref unless @tbls.has_value? ref.data
+          # TODO: redirect the ref to the table which have existed already or write will failed.
         end
       rescue => err
         puts "When read #{k}: #{err}"
         puts err.backtrace if EIS::Core.eis_debug
       end
       until refs.empty? # Read all refered table.
-        refs.each do |ref|
+        refs.each do |ref| # TODO: make single entry embedded in the ref will makes result easier to read.
           @tbls["implicit_#{ref.ref.to_s(16).upcase}"] = ref.data
           ref.data.read
           ref.data.each_ref do |iref|
@@ -100,9 +101,9 @@ module EIS
       @permission_man.global_merge
     end
 
-    def select(name)
-      @tbls[name]
-    end
+    # def select(name)
+    #   @tbls[name]
+    # end
 
     def save
       @fiomgr.save
@@ -116,8 +117,7 @@ module EIS
 
     protected
 
-    def read_tbl(ele)
-    end
-
+    # def read_tbl(ele)
+    # end
   end
 end
