@@ -56,7 +56,7 @@ module EIS
       @tbls = Hash.new nil
       @permission_man = PermissiveMan.new
       @string_allocator = StringAllocator.new @permission_man
-      @fiomgr = fiomgr.new @elf, @tbls, @permission_man, fpath unless.fpath.nil?
+      @fiomgr = fiomgr.new @elf, @tbls, @permission_man, fpath unless fpath.nil?
 
       EIS::BinStruct.elf = @elf
       EIS::BinStruct.string_allocator = @string_allocator
@@ -104,19 +104,19 @@ module EIS
       @tbls[name]
     end
 
-    attr_reader :tbls
-
-    protected
-
-    def read_tbl(ele)
-    end
-
     def save
       @fiomgr.save
     end
 
     def load(strict: true)
       @fiomgr.load(true)
+    end
+
+    attr_reader :tbls
+
+    protected
+
+    def read_tbl(ele)
     end
 
   end
