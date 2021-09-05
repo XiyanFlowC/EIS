@@ -194,7 +194,10 @@ module EIS
     # +count+::  指向字符串指针的数量
     # +controls+:: 指定布局为，1: 容许段管理器; 2: elf管理器（解引用）
     def initialize(count, controls)
-      raise ArgumentError("count", "Can't load more than 1 string in only one") if count != 1
+      if count != 1
+        raise ArgumentError("count",
+          "Can't load more than 1 string in only one EIS::String")
+      end
 
       @count = count
       @perm = controls[1]
@@ -208,7 +211,9 @@ module EIS
 
       oloc = stream.pos
       refs.each do |e|
+        puts "tring fetching string at #{e.to_s(16)}" if EIS::Core.eis_debug
         loc = @elf.vma_to_loc(e)
+        raise RangeError.new("vma out of range of true file") if loc.nil?
         stream.seek loc
         @data = fetch_string(stream) # FIXME: @data 应该是一个数组-Re：懒了，count!=1时直接报错(Line 198)。
         @perm.register(loc, @data)

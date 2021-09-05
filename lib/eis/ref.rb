@@ -1,5 +1,3 @@
-require "eis/table"
-
 module EIS
   ##
   # Pointer deref, co-operate with BinStruct, Core, Table.
@@ -20,6 +18,7 @@ module EIS
       @limiter = count
       @limit = count.instance_of?(Symbol) ? controls[0].method(count) : -> { count }
       @elf_man = controls[2]
+      @tbl_man = controls[3]
     end
 
     def size
@@ -39,8 +38,10 @@ module EIS
       # @data = []
       @ref = stream.sysread(4).unpack1("L<") if @elf_man.elf_base.endian == :little
       @ref = stream.sysread(4).unpack1("L>") if @elf_man.elf_base.endian == :big
-      @data = Table.new(@ref, @limit.call, @type, @elf_man, is_vma: true)
       puts("Ref#read(): @ref = #{@ref}") if EIS::Core.eis_debug
+      id = @tbl_man.get_id! @ref, @type, @limit.call
+      @data = @tbl_man.cell_by_id id
+      # @data = Table.new(@ref, @limit.call, @type, @elf_man, is_vma: true)
     end
 
     # def readref(stream)
@@ -72,7 +73,7 @@ module EIS
     # end
 
     def write(stream)
-      loc = @elf_man.vma_to_loc @data # 获取原始位置
+      loc = @elf_man.vma_to_loc @data.table.location # 获取原始位置
       # loc = @elf_man.permission_man.alloc(@data.size * @data[0].size) if $eis_shift >= 2 # 激进的指针重整策略需要重新分配指针表空间
       # raise "Virtual memory run out" if loc.nil?
       rloc = [loc].pack("L<")[0] if @elf_man.elf_base.endian == :little
@@ -80,7 +81,7 @@ module EIS
       stream.syswrite(rloc)
       nloc = stream.pos # 保存当前流位置，避免后续读取／写入混乱
 
-      @data.write stream
+      # @data.write stream # Leave these to TableMan
       # stream.seek loc
       # @data.each do |entry|
       #   entry.write(stream)

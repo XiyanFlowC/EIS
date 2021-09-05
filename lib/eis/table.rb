@@ -41,7 +41,7 @@ module EIS
     end
 
     def to_s
-      "Table of #{@elf}, located at #{@location} with #{@count} entries about #{@type}.\n"
+      "Table of #{@elf}, located at #{@location} with #{@count} entries about #{@type}"
     end
 
     ##
@@ -79,12 +79,13 @@ module EIS
       @elf.base_stream.seek @location
       i = 0
       @count.times do
+        puts("Table#read(): will read at #{@elf.base_stream.pos.to_s(16)}") if EIS::Core.eis_debug
         cell = Cell.new @elf.base_stream.pos, i.to_s
         begin
           inst = @type.new
           inst.read(@elf.base_stream)
-        rescue Errno::EINVAL
-          raise "Table#read(): fatal: seek failed. @#{i}"
+        rescue RangeError
+          raise "Table#read(): fatal: pointer error. @#{i}"
         end
         puts("Table#read(): read #{inst}") if EIS::Core.eis_debug
         cell.data = inst

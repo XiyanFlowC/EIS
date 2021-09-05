@@ -1,6 +1,8 @@
 require "active_support/all"
 
 require "eis/bin_struct"
+require "eis/table"
+require "eis/table_man"
 require "eis/elf_man"
 require "eis/error"
 require "eis/permissive_block"
@@ -9,6 +11,7 @@ require "eis/ref"
 require "eis/string_allocator"
 require "eis/symbol_man"
 require "eis/types"
+
 require "eis/filesrv/xmlio"
 
 module EIS
@@ -53,13 +56,15 @@ module EIS
       @elf = EIS::Core.elf = EIS::ElfMan.new elf_path
       @out_elf = File.new(target_elf, "r+b")
       # @path = path
-      @tbls = Hash.new nil
+      # @tbls = Hash.new nil
       @permission_man = PermissiveMan.new
+      @table_manager = TableMan.new @elf, @permission_man
       @string_allocator = StringAllocator.new @permission_man
-      @fiomgr = fiomgr.new @elf, @tbls, @permission_man, fpath unless fpath.nil?
+      @fiomgr = fiomgr.new @elf, @table_manager, @permission_man, fpath unless fpath.nil?
 
       EIS::BinStruct.elf = @elf
       EIS::BinStruct.string_allocator = @string_allocator
+      EIS::BinStruct.table_manager = @table_manager
     end
 
     ##
@@ -71,34 +76,41 @@ module EIS
     # +length+:: the count of entries in the table.
     # +type+:: the entries' type.
     def table(name, location, length, type)
-      @tbls[name.to_s] = Table.new(location, length, type, @elf)
+      tbl = Table.new(location, length, type, @elf)
+      @table_manager.register_table(tbl, name)
     end
 
     ##
     # Fetch data from elf.
     def read
-      refs = []
-      @tbls.each do |k, e|
-        e.read
-        e.each_ref do |ref| # Add refered table to refs so that can read it later.
-          refs << ref unless @tbls.has_value? ref.data
-          # TODO: redirect the ref to the table which have existed already or write will failed.
-        end
-      rescue => err
-        puts "When read #{k}: #{err}"
-        puts err.backtrace if EIS::Core.eis_debug
-      end
-      until refs.empty? # Read all refered table.
-        refs.each do |ref| # TODO: make single entry embedded in the ref will makes result easier to read.
-          @tbls["implicit_#{ref.ref.to_s(16).upcase}"] = ref.data
-          ref.data.read
-          ref.data.each_ref do |iref|
-            refs << iref unless @tbls.has_value? iref.data
-          end
-          refs.delete ref
-        end
-      end
+      # refs = []
+      # @tbls.each do |k, e|
+      #   e.read
+      #   e.each_ref do |ref| # Add refered table to refs so that can read it later.
+      #     refs << ref unless @tbls.has_value? ref.data
+      #     # TODO: redirect the ref to the table which have existed already or write will failed.
+      #   end
+      # rescue => err
+      #   puts "When read #{k}: #{err}"
+      #   puts err.backtrace if EIS::Core.eis_debug
+      # end
+      # until refs.empty? # Read all refered table.
+      #   refs.each do |ref| # TODO: make single entry embedded in the ref will makes result easier to read.
+      #     @tbls["implicit_#{ref.ref.to_s(16).upcase}"] = ref.data
+      #     ref.data.read
+      #     ref.data.each_ref do |iref|
+      #       refs << iref unless @tbls.has_value? iref.data
+      #     end
+      #     refs.delete ref
+      #   end
+      # end
+      @table_manager.read
       @permission_man.global_merge
+    end
+
+    def write
+      @permission_man.global_merge
+      @table_manager.write
     end
 
     # def select(name)
@@ -113,7 +125,7 @@ module EIS
       @fiomgr.load(true)
     end
 
-    attr_reader :tbls
+    # attr_reader :tbls
 
     protected
 

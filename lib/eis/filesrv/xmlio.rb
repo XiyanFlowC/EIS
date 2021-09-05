@@ -19,7 +19,7 @@ module EIS
       i = 0
       return nil if val.data.nil?
 
-      val.data.each do |e|
+      val.each_data do |e|
         entry = xml.add_element(e.class.to_s, {"index" => i.to_s})
         i += 1
         e.fields.each do |k, v|
@@ -29,6 +29,14 @@ module EIS
             # TODO: once the Ref enhanced, change to do_save for human readablity.
             f.add_attribute("refval", v.ref.to_s(16).upcase)
             f.add_attribute("limiter", v.limiter.to_s)
+
+            # puts v.data
+            if v.data.type == :single && v.data.ref_cnt == 1
+              do_save f, v.data.table
+              f.add_attribute("embed", "true")
+            else
+              f.add_attribute("embed", "false")
+            end
             # f.add_text v.ref.to_s(16).upcase
             # do_save f, v
           elsif v.data.instance_of?(Array)
@@ -39,7 +47,7 @@ module EIS
               f.add_element("entry").add_text(entry1.to_s)
             end
           else
-            f.add_attribute("type", v.class.to_s)
+            # f.add_attribute("type", v.class.to_s)
             f.add_text v.data.to_s
           end
         end
@@ -53,10 +61,23 @@ module EIS
       doc = REXML::Document.new
       xml = doc.add_element("ELF", {"name" => @elf.base_stream.path, "version" => @elf.base_stream.mtime.to_s}) # root element
 
-      @tbls.each do |key, value| # save all tables
-        ele = xml.add_element(key, {"type" => "Table", "addr" => value.location.to_s, "size" => value.count.to_s})
+      @tbls.each_primary do |value| # save all tables
+        ele = xml.add_element(value.name,
+          {"type" => "PrimaryTable",
+           "addr" => value.table.location.to_s(16),
+           "size" => value.table.count.to_s})
 
-        do_save(ele, value)
+        do_save(ele, value.table)
+      end
+
+      @tbls.each_single do |cell|
+        next if cell.ref_cnt == 1
+        ele = xml.add_element(cell.name,
+          {"type" => "MultiRefedTable",
+           "addr" => cell.table.location.to_s(16),
+           "size" => cell.table.count.to_s})
+
+        do_save(ele, cell.table)
       end
 
       # save permission data

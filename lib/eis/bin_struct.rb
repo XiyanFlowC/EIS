@@ -107,15 +107,15 @@ module EIS
         end
       end
 
-      attr_accessor :elf, :string_allocator
+      attr_accessor :elf, :string_allocator, :table_manager
 
       def string(name, *params)
         count = handle_count(params)
         register_field(name, count, EIS::String, [EIS::BinStruct.string_allocator, EIS::BinStruct.elf])
       end
 
-      def ref(type, name, count)
-        register_field(name, count, EIS::Ref, [type.to_s.constantize, EIS::BinStruct.elf])
+      def ref(type, name, count = -1)
+        register_field(name, count, EIS::Ref, [type.to_s.constantize, EIS::BinStruct.elf, EIS::BinStruct.table_manager])
       end
 
       def handle_count(params)

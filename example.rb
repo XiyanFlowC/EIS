@@ -100,22 +100,28 @@ class MonsterCard < EIS::BinStruct
   string :place
 end
 
-# --- 导出表指定开始 ---
-# core.table('RPKFAT' ,0x2E7D80 + 0xff000, 2805, FAEntry) # 低价值
-# core.table('FPFAT', 0x30ADA8 + 0xff000, 671, FPEntry) # 低价值（改文件名时或许有用？）
-core.table("EVDs", 0x638df0 + 0xff000, 976, EVDMemo)
-core.table("IPUs", 0x58e060, 361, IPU)
-core.table("BGMs", 0x5911c8, 122, BGM)
-core.table("MOVs", 0x5922a0, 104, Movie)
-core.table("Skills", 0x6e64a0, 309, Skill)
-core.table("RCs", 0x6eab18, 108, RecipeCard)
-core.table("MCs", 0x6eb1d8, 124, MonsterCard)
+class QVTalkIdx < EIS::BinStruct
+  int16 :ukn, 4
+  ref :Dialog, :dialog
+end
 
-core.table("CosmoSphereDialogs", 0x721478, 46, DLGIndex)
-core.table("InstallDialogs", 0x724060, 68, DLGIndex)
-core.table("NightDialogs", 0x734d20, 254, DLGIndex)
-core.table("NightGreetDialogs", 0x735888, 37, DLGIndex)
-# core.table('SingleDialogs', 0x832088, 9999, DLGIndex) # ？
+# --- 导出表指定开始 ---
+# core.table('RPKFAT' ,0x2E7D88 + 0xff000, 2805, FAEntry) # 低价值
+# core.table('FPFAT', 0x30ADA8 + 0xff000, 671, FPEntry) # 低价值（改文件名时或许有用？）
+# core.table("EVDs", 0x638df0 + 0xff000, 976, EVDMemo)
+# core.table("IPUs", 0x58e060, 361, IPU)
+# core.table("BGMs", 0x5911c8, 122, BGM)
+# core.table("MOVs", 0x5922a0, 104, Movie)
+# core.table("Skills", 0x6e64a0, 309, Skill)
+# core.table("RCs", 0x6eab18, 108, RecipeCard)
+# core.table("MCs", 0x6eb1d8, 124, MonsterCard)
+
+# core.table("CosmoSphereDialogs", 0x721478, 46, DLGIndex)
+# core.table("InstallDialogs", 0x724060, 68, DLGIndex)
+# core.table("NightDialogs", 0x734d20, 254, DLGIndex)
+# core.table("NightGreetDialogs", 0x735888, 37, DLGIndex)
+core.table("QvTalkDialogs", 0x829D60, 1718, Dialog)
+core.table('QvTalkCtl', 0x832088, 638, QVTalkIdx) # ？
 
 core.table("GrathmelcDialogs", 0x8bb8d8, 137, DLGIndex)
 

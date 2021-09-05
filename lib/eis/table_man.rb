@@ -14,6 +14,7 @@ module EIS
     # * enable_rename: if a named table be registered after imlicit asumming, whether
     #   the table's id will be changed. If so, after that, the outer codes need to
     #   requery the name by a table's unchangable properties. DEFAULT: false.
+    #   __WARN__: Neutralized.
     def initialize elf_man, perm_man, implicit_prefix: "implicit_", enable_rename: false
       @elf_man = elf_man
       @perm_man = perm_man
@@ -23,9 +24,9 @@ module EIS
     end
 
     def to_s
-      <<-EOS
-EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
-#{@tables.size} table(s) is managed.
+      <<~EOS
+        EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
+        #{@tables.size} table(s) is managed.
       EOS
     end
 
@@ -54,14 +55,15 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
     #   and will not be update unless the whole table is refered.
     # * :partial - The table is a part of a bigger table. Reffered to the
     #   bigger table and will not be handle during address shifting.
-    #   Since :partial is not a real table, the table field is nil. The
-    #   record exists just for the convenient management.
+    #   Since :partial is not a real table, the table field is it's location.
     # * :single - The table is implicittly reffered by another table and
     #   it's stand-along. It will be shift if the aggressive shifting
     #   option is specified.
     def register_table table, name = nil, type: :primary
-      raise ArgumentError.new("table",
-        "Must be EIS::Table but #{table.class}!") unless table.is_a? Table
+      unless table.is_a? Table
+        raise ArgumentError.new("table",
+          "Must be EIS::Table but #{table.class}!")
+      end
       cell = Cell.new(name.nil? ? @implicit_prefix + table.location.to_s(16) : name,
         table,
         type,
@@ -73,6 +75,14 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
       if block_given?
         @tables.each do |table|
           yield table
+        end
+      end
+    end
+
+    def each_table
+      if block_given?
+        @tables.each do |cell|
+          yield cell.table
         end
       end
     end
@@ -104,6 +114,33 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
       end
     end
 
+    def table_by_id id
+      @tables.each do |cell|
+        return cell.table if cell.name == id
+      end
+    end
+
+    def cell_by_id id
+      @tables.each do |cell|
+        return cell if cell.name == id
+      end
+    end
+
+    def read
+      @tables.each do |cell|
+        next if cell.type == :partial
+        puts "TableMan#read: will read #{cell.name}@#{cell.table.location.to_s(16)}" if EIS::Core.eis_debug
+        cell.table.read
+      end
+    end
+
+    def write
+      @tables.each do |cell|
+        next if cell.type == :partial
+        cell.table.write
+      end
+    end
+
     ##
     # = Try to get the specified table
     # Try get a table datum cell. The location, size, and count.
@@ -115,7 +152,7 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
     # You'd better handle this special case.
     #
     # *This method only check if here is a corresponding record.*
-    # 
+    #
     # *No changes will be made to this manager.*
     #
     # == Parameters
@@ -126,10 +163,10 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
     # +is_vma+::    _named_ if the location is the vma or not.
     #               DEFAULT: true.
     def try_get_id location, type, count, is_vma: true
-      location = is_vma ? @elf_man.vma_to_loc location : location
+      location = is_vma ? @elf_man.vma_to_loc(location) : location
 
       each_single do |entry| # 为已经登记的隐含表
-        if entry.location == location &&
+        if entry.table.location == location &&
             (count == -1 ? true : entry.table.count == count)
           entry.ref_cnt += 1
           return entry.name
@@ -137,7 +174,7 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
       end
 
       each_partial do |entry| # 乃其他表的引用
-        if entry.location == location
+        if entry.table == location
           entry.ref_cnt += 1
           return entry.name # partial 的名字在创建时即符合约定
         end
@@ -150,7 +187,7 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
         next if datum.nil? # Nothing is found.
         return cell.name if cell.table.location == location &&
           cell.table.count == count # 必须是显式指定到整个表才是相同。
-        
+
         # 所有判例确认完毕，到达此处者皆为部分引用。
         # 由于已有的部分引用在上表一定命中，此处的引用一定不存在。
         # 根据约定，这里不做任何处理（理论存在，但无法创建记录单元）。
@@ -160,10 +197,17 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
       nil
     end
 
+    ##
+    # = Get or Set a Specified Table at Location
+    # This method will try to find a table that match user's requirement,
+    # but if failed, this method will try to create a new table that
+    # matches the user's requirement. However, if a partial will be
+    # created, the +name+ will be neutralized.
     def get_id! location, type, count, name: nil, is_vma: true
-      location = is_vma ? @elf_man.vma_to_loc location : location
+      location = is_vma ? @elf_man.vma_to_loc(location) : location
+      raise RangeError.new "location out of range." if location.nil?
 
-      tblnm = name.nil? @implicit_prefix + location.to_s : name
+      tblnm = name.nil? ? @implicit_prefix + location.to_s(16) : name
       id = try_get_id location, type, count
       return id unless id.nil?
 
@@ -176,12 +220,12 @@ EIS::TableMan to #{@elf_man}. Implicit prefix is #{@implicit_prefix}
         # 对于已经存在的表的完全匹配必然已在 try_get_id 中命中并返回。
         # 故此处不必判断是否命中全表，到达此处的必然是部分引用。
         # 所以直接创建记录单元并返回 ID
-        @tables << Cell.new(tblnm, nil, :partial, 1)
+        @tables << Cell.new("#{cell.name}:#{datum.index}", location, :partial, 1)
         return "#{cell.name}:#{datum.index}"
       end
       # 对于到达这里的项，其表一定尚未创建。
       # 故其必为 :single ，创建新的 Table 容纳之，并创建记录单元。
-      table = Table.new(location, count, type, @elf_man, is_vma: is_vma)
+      table = Table.new(location, count, type, @elf_man, is_vma: false)
       @tables << Cell.new(tblnm, table, :single, 1)
       tblnm
     end
