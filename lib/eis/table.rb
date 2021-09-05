@@ -41,7 +41,7 @@ module EIS
     end
 
     def to_s
-      "Table of #{@elf}, located at #{@location} with #{@count} entries about #{@type}"
+      "Table of #{@elf}, located at #{@location} with #{@count} entries about #{@type}.\n"
     end
 
     ##
@@ -62,12 +62,14 @@ module EIS
       eql? other
     end
 
-    attr_reader :location, :count
+    attr_reader :location, :count, :type
+
+    Cell = Struct.new :location, :index, :data
 
     ##
     # Read table contents from specified ElfMan
     #
-    # = Code Block
+    # == Code Block
     # A block with one parameter which recieve the read
     # ENTRY datum instance.
     def read
@@ -77,6 +79,7 @@ module EIS
       @elf.base_stream.seek @location
       i = 0
       @count.times do
+        cell = Cell.new @elf.base_stream.pos, i.to_s
         begin
           inst = @type.new
           inst.read(@elf.base_stream)
@@ -84,7 +87,8 @@ module EIS
           raise "Table#read(): fatal: seek failed. @#{i}"
         end
         puts("Table#read(): read #{inst}") if EIS::Core.eis_debug
-        @data << inst
+        cell.data = inst
+        @data << cell
         i += 1
         yield(inst) if block_given?
       end
@@ -98,12 +102,28 @@ module EIS
       end
     end
 
+    def each_data
+      if block_given?
+        @data.each do |e|
+          yield e.data
+        end
+      end
+    end
+
+    def each_index
+      if block_given?
+        @data.each do |e|
+          yield e.index
+        end
+      end
+    end
+
     ##
     # Call the given block for each ref in the table.
     # Including the refs in every BinStruct's instances.
     def each_ref
       if block_given?
-        @data.each do |e|
+        each_data do |e|
           if e.is_a? EIS::BinStruct
             e.each_ref do |ref|
               yield ref
@@ -115,14 +135,56 @@ module EIS
       end
     end
 
+    ##
+    # Get first datum that exists on given location.
+    def datum_by_location loc
+      @data.each do |datum|
+        return datum if datum.location == loc
+      end
+      nil
+    end
+
+    ##
+    # Get first datum that holds the given index.
+    def datum_by_index idx
+      @data.each do |datum|
+        return datum if datum.name == idx
+      end
+      nil
+    end
+
+    ##
+    # Get all data that exists on given location.
+    def data_by_location loc
+      ret = []
+      @data.each do |datum|
+        ret << datum if datum.location == loc
+      end
+      ret
+    end
+
+    ##
+    # Get all data the holds the given index.
+    #
+    # *testonly*: the result should be only ONE element if other routine
+    # is running correctly. **Prevent** using this and try to using
+    # <tt>datum_by_index(idx)</tt>.
+    def data_by_index idx
+      ret = []
+      @data.each do |datum|
+        ret << datum if datum.index == idx
+      end
+      ret
+    end
+
     attr_reader :data
 
     ##
     # Set data to this table. If the data size is mismatch
     # with the recored size, raise ArgumentError.
     def data=(value)
+      raise ArgumentError.new "value", "Type error, must be an Array. But #{value.class}" unless value.is_a? Array
       raise ArgumentError.new "value", "Size error. (#{value.size} against #{@count})" if value.size != @count
-
       @data = value
     end
 
@@ -140,7 +202,7 @@ module EIS
       # loc = @elf.vma_to_loc @location
       @elf.elf_out.seek @location
 
-      @data.each do |datum|
+      each_data do |datum|
         datum.write(@elf.elf_out)
       end
     end
