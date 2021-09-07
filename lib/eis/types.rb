@@ -212,17 +212,18 @@ module EIS
     attr_accessor :data
 
     def read(stream)
+      puts "geting string pointer at #{stream.pos.to_s(16)}" if EIS::Core.eis_debug
       refs = stream.sysread(4 * @count).unpack("L#{@count}")
 
       oloc = stream.pos
       refs.each do |e|
-        puts "tring fetching string at #{e.to_s(16)}" if EIS::Core.eis_debug
         loc = @elf.vma_to_loc(e)
         raise RangeError.new("vma out of range of true file") if loc.nil?
         stream.seek loc
         @data = fetch_string(stream) # FIXME: @data 应该是一个数组-Re：懒了，count!=1时直接报错(Line 198)。
         @perm.register(loc, @data, align: EIS::String.align)
       end
+
       stream.pos = oloc
     end
 
