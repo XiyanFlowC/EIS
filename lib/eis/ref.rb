@@ -1,7 +1,6 @@
 module EIS
   ##
-  # Pointer deref, co-operate with BinStruct, Core, Table.
-  # It's really a messy but I have no ablility to solve it.
+  # Pointer deref, co-operate with BinStruct, Core, Table
   class Ref
     ##
     # Create a new Ref type.
@@ -30,7 +29,15 @@ module EIS
     end
 
     attr_reader :limiter
-    attr_accessor :data, :ref # , :count # , :ref
+    attr_accessor :data # , :ref # , :count # , :ref
+
+    def ref
+      @elf_man.loc_to_vma data.type == :partial ? data.table : data.table.location
+    end
+
+    def ref= val
+      data.table.change_loc! @loc
+    end
 
     ##
     # Read from stream
@@ -39,9 +46,15 @@ module EIS
       @ref = stream.sysread(4).unpack1("L<") if @elf_man.elf_base.endian == :little
       @ref = stream.sysread(4).unpack1("L>") if @elf_man.elf_base.endian == :big
       puts("Ref#read(): @ref = #{@ref}") if EIS::Core.eis_debug
+      # id = @tbl_man.get_id! @ref, @type, @limit.call # can't be done here
+      # @data = @tbl_man.cell_by_id id # the limiter can still not readin
+      # @data = Table.new(@ref, @limit.call, @type, @elf_man, is_vma: true)
+    end
+
+    def post_proc
       id = @tbl_man.get_id! @ref, @type, @limit.call
       @data = @tbl_man.cell_by_id id
-      # @data = Table.new(@ref, @limit.call, @type, @elf_man, is_vma: true)
+      @data = Table.new
     end
 
     # def readref(stream)

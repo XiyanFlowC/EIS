@@ -66,16 +66,16 @@ module EIS
     end
 
     def read(stream)
-      # readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
+      readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
       @fields.each do |key, entry|
-        # readdelay << entry if entry.class == Ref
+        readdelay << entry if entry.instance_of? Ref # 或许将这个东西普遍化？
 
         entry.read(stream)
       end
 
-      # readdelay.each do |entry|
-      #   entry.readref(stream) # 此时再解引用，这时数量限制数据必然已经读入
-      # end # 现在暂时不需要。
+      readdelay.each do |entry|
+        entry.post_proc # 此时再解引用，这时数量限制数据必然已经读入
+      end
     end
 
     def write(stream)

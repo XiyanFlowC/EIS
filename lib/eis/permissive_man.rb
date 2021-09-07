@@ -53,6 +53,7 @@ module EIS
     ##
     # Register a fragment
     def register(location, length, align: 8)
+      puts "PermMan: Registered #{location}: #{length}" if EIS::Core.eis_debug
       length = length + align - 1 & ~(align - 1)
       @register_table.each do |entry|
         if entry.overlap? location, length

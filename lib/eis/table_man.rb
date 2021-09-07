@@ -118,12 +118,14 @@ module EIS
       @tables.each do |cell|
         return cell.table if cell.name == id
       end
+      nil
     end
 
     def cell_by_id id
       @tables.each do |cell|
         return cell if cell.name == id
       end
+      nil
     end
 
     def read

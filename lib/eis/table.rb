@@ -62,6 +62,18 @@ module EIS
       eql? other
     end
 
+    ##
+    # = Change the Location that the Table Located
+    # This method will change the value of field +@location+.
+    # Usful when you want to auto-reallocate the table(s).
+    #
+    # == Parameters
+    # +loc+::    The new loacation the table should be located.
+    # +is_vma+:: _named_ Is the +loc+ is vma? DEFAULT: true.
+    def change_loc! loc, is_vma: true
+      @location = is_vma ? @elf.vma_to_loc(loc) : loc
+    end
+
     attr_reader :location, :count, :type
 
     Cell = Struct.new :location, :index, :data

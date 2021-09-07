@@ -71,7 +71,7 @@ module EIS
     end
 
     ##
-    # = fetch_data
+    # = Fetch Data from Stream by Data of ElfMan
     # Process with the given template_str and return the result
     # unpacked from the base stream.
     #
@@ -102,6 +102,7 @@ module EIS
     # <tt>elf.fetch_data(0x255ffc, "hhhh", mode: :offset)</tt>
     # <tt>elf.fetch_data(0x1000, "llll")</tt>
     def fetch_data(location, template_str, mode: :vma, shiftable: false)
+      ori_loc = @base_stream.loc
       @base_stream.seek(location) if mode == :offset
       @base_stream.seek(vma_to_loc(location)) if mode == :vma
 
@@ -180,6 +181,8 @@ module EIS
       refs.each do |refi|
         ans[refi] = vma_to_loc ans[refi]
       end
+
+      @base_stream.loc = ori_loc # 恢复本来位置，保证其他系统正常。
       ans
     end
   end

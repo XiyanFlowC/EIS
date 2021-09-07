@@ -34,11 +34,11 @@ module EIS
             if v.data.type == :single && v.data.ref_cnt == 1
               do_save f, v.data.table
               f.add_attribute("embed", "true")
+              f.add_attribute("base", v.data.type.to_s)
             else
+              f.add_attribute("refname", v.data.name)
               f.add_attribute("embed", "false")
             end
-            # f.add_text v.ref.to_s(16).upcase
-            # do_save f, v
           elsif v.data.instance_of?(Array)
             f.add_attribute("type", "Array")
             f.add_attribute("size", v.data.size.to_s)
@@ -81,7 +81,7 @@ module EIS
       end
 
       # save permission data
-      pm = xml.add_element("PermissiveBlocks", {"type" => "EISCore", "count" => @elf.permission_man.register_table.size})
+      pm = xml.add_element("PermissiveBlocks", {"type" => "PermBlkGrp", "count" => @elf.permission_man.register_table.size})
       @permission_man.register_table.each do |e|
         entry = pm.add_element("PermissiveBlock")
         entry.add_element("Location", {"base" => "16", "unit" => "byte"}).add_text(e.location.to_s(16))
@@ -90,6 +90,79 @@ module EIS
 
       doc.write file, 2
       file.close
+    end
+
+    def do_tblload(xmlele, tbl)
+      data = []
+      ele.elements.each do |e| # entries in table
+        cnt = Module.const_get(e.name).new # new instance of Type
+
+        postpondread = []
+
+        e.elements.each do |fld| # every fileds
+          if fld.attributes["type"] == "Array"
+            tmp = []
+            fld.each_element do |entry|
+              if fld["base"].include? "Int"
+                textarr = entry.text.split ", "
+                textarr.each do |datum|
+                  tmp << datum.to_i
+                end
+              else
+                raise "FIXME: Not Implemented Yet"
+              end
+            end
+            cnt.send("#{fld.name}=", tmp)
+          elsif fld.attributes["type"] == "Ref"
+            if fld.attributes["embed"] == "false"
+              cnt.send("#{fld.name}=", @tbls.cell_by_id(fld["refname"].strip))
+            elsif fld.attributes["embed"] == "true"
+              postpondread << fld
+              # Because not all information that we need is read at this moment.
+              # We postpond this element for last to read.
+
+              # tid = @tbls.get_id!(fld["refval"].to_i(16), # This is the value of the vma
+              #   Module.const_get(fld["base"]), # Get the corresponding type
+              #   )
+              # cnt.send("#{fld.name}=", @tbls.cell_by_id(tid))
+            else
+              raise "'embed' attribute violate."
+              # raise "属性值 'embed' 违约。"
+            end
+          else
+            cnt.send("#{fld.name}=", fld.text.strip)
+          end
+        end
+        # For now every data that we have is read in.
+        # Start to read the postponded table(s).
+        until postpondread.empty?
+          txt = postpondread.pop
+          # Get limiter information
+          limiter = txt["limiter"]
+          # Is integer
+          count = if (limiter.chr >= "0" && limiter.chr <= "9") || limiter.chr == "-"
+            limiter.to_i
+          else
+            cnt.send(limiter)
+          end
+
+          # At here, we can use get_id! because it will create table automatically,
+          # and the table created by get_id! is :single, which just as we want.
+          # Moreover, if the tablse has existed already, this method will return
+          # the id directly.
+          id = @tbls.get_id!(
+            txt.refval.to_i(16), # This is the vma, so is_vma is not need to set
+            Module.const_get(txt.base),
+            count
+          )
+
+          tbl = @tbls.table_by_id id
+          do_tblload(txt, tbl)
+        end
+
+        data << cnt
+      end
+      tbl.data = data
     end
 
     def load(strict)
@@ -106,35 +179,45 @@ module EIS
         return nil if strict
       end
 
-      root.each_element_with_attribute("type", "Table") do |ele| # load for tables
-        tbl = select(ele.name)
-        data = []
-        ele.elements.each do |e| # entries in table
-          cnt = Module.const_get(e.name).new
-          e.elements.each do |fld| # every fileds
-            if fld.attributes["type"] == "Array"
-              tmp = []
-              fld.each_element do |entry|
-                if fld["base"].include? "Int"
-                  textarr = entry.text.split ", "
-                  textarr.each do |datum|
-                    tmp << datum.to_i
-                  end
-                else
-                  raise "FIXME: Not Implement Yet"
-                end
-              end
-              cnt.send("#{fld.name}=", tmp)
-            elsif fld.attributes["type"] == "Ref"
-              # try implement a table manager so to make the table ref is unique.
-              cnt.send("#{fld.name}=", fld["refval"].strip.to_i(16))
-            else
-              cnt.send("#{fld.name}=", fld.text.strip)
-            end
-          end
-          data << cnt
+      root.each_element_with_attribute("type", "PermBlkGrp") do |ele|
+        ele.each_element do |pm|
+          # TODO: Read in.
         end
-        tbl.data = data
+      end
+
+      root.each_element_with_attribute("type", "PrimaryTable") do |ele| # load for tables
+        # @tbls.clear! # not implemented yet, TODO: implement it.
+        tbl = @tbls.table_by_id(ele.name) # Codes is first.
+        if tbl.nil?
+          @tbls.register_table(
+            tbl = Table.new(
+              ele["location"].to_i(16),
+              ele["size"].to_i,
+              Module.const_get(ele["type"]),
+              @elf, is_vma: false
+            ), ele.name
+          )
+        end
+
+        do_tblload(ele, tbl)
+      end
+
+      # 或许合并？
+      root.each_element_with_attribute("type", "MultiRefedTable") do |ele|
+        # @tbls.clear! # not implemented yet, TODO: implement it.
+        tbl = @tbls.table_by_id(ele.name) # Codes is first.
+        if tbl.nil?
+          @tbls.register_table(
+            tbl = Table.new(
+              ele["location"].to_i(16),
+              ele["size"].to_i,
+              Module.const_get(ele["type"]),
+              @elf, is_vma: false
+            ), ele.name
+          )
+        end
+
+        do_tblload(ele, tbl)
       end
     end
   end
