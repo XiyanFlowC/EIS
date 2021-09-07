@@ -187,6 +187,11 @@ module EIS
   # 指向 C 风格字符串的指针。
   # ================================
   class String
+    class << self
+      attr_accessor :align
+      String.align = 8
+    end
+
     ##
     # 初始化+String+对象，需要计数和控制数组
     #
@@ -216,7 +221,7 @@ module EIS
         raise RangeError.new("vma out of range of true file") if loc.nil?
         stream.seek loc
         @data = fetch_string(stream) # FIXME: @data 应该是一个数组-Re：懒了，count!=1时直接报错(Line 198)。
-        @perm.register(loc, @data)
+        @perm.register(loc, @data, align: EIS::String.align)
       end
       stream.pos = oloc
     end
@@ -225,7 +230,7 @@ module EIS
       refs = []
       oloc = stream.pos
       @data.each do |s|
-        loc = @perm.salloc(s)
+        loc = @perm.salloc(s, align: EIS::String.align)
         raise "Memory run out" if loc.nil?
 
         refs << @elf.loc_to_vma(loc)
@@ -254,7 +259,7 @@ module EIS
     end
 
     def write_string(stream, s)
-      p = (s.length + 8 & ~7) - s.length
+      p = (s.length + EIS::String.align & ~(EIS::String.align - 1)) - s.length
       stream.syswrite(s)
       stream.syswrite('\0')
       stream.pos += p
