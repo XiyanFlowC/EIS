@@ -34,7 +34,7 @@ module EIS
             if v.data.type == :single && v.data.ref_cnt == 1
               do_save f, v.data.table
               f.add_attribute("embed", "true")
-              f.add_attribute("base", v.data.type.to_s)
+              f.add_attribute("base", v.data.table.type.to_s)
             else
               f.add_attribute("refname", v.data.name)
               f.add_attribute("embed", "false")
@@ -152,9 +152,11 @@ module EIS
           # and the table created by get_id! is :single, which just as we want.
           # Moreover, if the tablse has existed already, this method will return
           # the id directly.
+          # Remember! This method just called to CREATE the table, the table reachs
+          # here should ALWAYS be :single!!
           id = @tbls.get_id!(
-            txt.refval.to_i(16), # This is the vma, so is_vma is not need to set
-            Module.const_get(txt.base),
+            txt["refval"].to_i(16), # This is the vma, so is_vma is not need to set
+            Module.const_get(txt["base"]),
             count
           )
 
@@ -210,7 +212,7 @@ module EIS
         if tbl.nil?
           @tbls.register_table(
             tbl = Table.new(
-              ele["location"].to_i(16),
+              ele["addr"].to_i(16),
               ele["size"].to_i,
               Module.const_get(ele["type"]),
               @elf, is_vma: false
