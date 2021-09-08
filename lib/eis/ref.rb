@@ -54,7 +54,7 @@ module EIS
     def post_proc
       id = @tbl_man.get_id! @ref, @type, @limit.call
       @data = @tbl_man.cell_by_id id
-      @data = Table.new
+      @data = Table.new @ref, @limit.call, @type, @elf_man, is_vma: true
     end
 
     # def readref(stream)
