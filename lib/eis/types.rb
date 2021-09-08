@@ -32,7 +32,7 @@ module EIS
     end
 
     def write(stream)
-      stream.syswrite(value.pack("c#{@data.count}"))
+      stream.syswrite(@data.pack("c#{@data.count}"))
     end
 
     def size

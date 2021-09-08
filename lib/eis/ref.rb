@@ -32,11 +32,11 @@ module EIS
     attr_accessor :data # , :ref # , :count # , :ref
 
     def ref
-      @elf_man.loc_to_vma data.type == :partial ? data.table : data.table.location
+      @elf_man.loc_to_vma @data.type == :partial ? @data.table : @data.table.location
     end
 
     def ref= val
-      data.table.change_loc! @loc
+      @data.table.change_loc! val
     end
 
     ##

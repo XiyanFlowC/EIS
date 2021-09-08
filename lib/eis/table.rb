@@ -162,7 +162,7 @@ module EIS
     # Get first datum that holds the given index.
     def datum_by_index idx
       @data.each do |datum|
-        return datum if datum.name == idx
+        return datum if datum.index == idx
       end
       nil
     end

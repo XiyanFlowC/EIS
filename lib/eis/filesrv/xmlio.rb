@@ -65,7 +65,8 @@ module EIS
         ele = xml.add_element(value.name,
           {"type" => "PrimaryTable",
            "addr" => value.table.location.to_s(16),
-           "size" => value.table.count.to_s})
+           "size" => value.table.count.to_s,
+           "base" => value.table.type.to_s})
 
         do_save(ele, value.table)
       end
@@ -75,7 +76,8 @@ module EIS
         ele = xml.add_element(cell.name,
           {"type" => "MultiRefedTable",
            "addr" => cell.table.location.to_s(16),
-           "size" => cell.table.count.to_s})
+           "size" => cell.table.count.to_s,
+           "base" => cell.table.type.to_s})
 
         do_save(ele, cell.table)
       end
@@ -117,7 +119,7 @@ module EIS
             cnt.send("#{fld.name}=", tmp)
           elsif fld.attributes["type"] == "Ref"
             if fld.attributes["embed"] == "false"
-              cnt.send("#{fld.name}=", @tbls.cell_by_id(fld["refname"].strip))
+              cnt.send("#{fld.name}=", @tbls.cell_by_id!(fld["refname"].strip))
             elsif fld.attributes["embed"] == "true"
               postpondread << fld
               # Because not all information that we need is read at this moment.
@@ -162,6 +164,7 @@ module EIS
 
           tbl = @tbls.table_by_id id
           do_tblload(txt, tbl)
+          cnt.send("#{fld.name}=", @tbls.cell_by_id(id))
         end
 
         data[e["index"]] = cnt
@@ -197,7 +200,7 @@ module EIS
             tbl = Table.new(
               ele["location"].to_i(16),
               ele["size"].to_i,
-              Module.const_get(ele["type"]),
+              Module.const_get(ele["base"]),
               @elf, is_vma: false
             ), ele.name
           )
@@ -214,7 +217,7 @@ module EIS
             tbl = Table.new(
               ele["addr"].to_i(16),
               ele["size"].to_i,
-              Module.const_get(ele["type"]),
+              Module.const_get(ele["base"]),
               @elf, is_vma: false
             ), ele.name
           )

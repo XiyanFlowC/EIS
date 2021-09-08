@@ -122,8 +122,8 @@ module EIS
       @table_manager.tables
     end
 
-    def table_by_id
-      @table_manager.table_by_id
+    def table_by_id id
+      @table_manager.table_by_id id
     end
 
     def save

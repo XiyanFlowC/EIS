@@ -130,6 +130,19 @@ module EIS
       nil
     end
 
+    def cell_by_id! id
+      return tid unless (tid = cell_by_id(id)).nil?
+
+      idp = id.split ":"
+      return nil if idp.size < 2
+
+      return nil if (tbl = table_by_id(idp[0])).nil?
+      return nil if (datum = tbl.datum_by_index(idp[1])).nil?
+      cell = Cell.new(id, datum.location, :partial, 1)
+      @tables << cell
+      cell
+    end
+
     def read
       @tables.each do |cell|
         next if cell.type == :partial
