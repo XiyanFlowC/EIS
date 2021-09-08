@@ -231,12 +231,12 @@ module EIS
       refs = []
       oloc = stream.pos
       # @data.each do |s|
-        loc = @perm.salloc(@data, align: EIS::String.align)
-        raise "Memory run out when alloc #{@data}" if loc.nil?
+      loc = @perm.salloc(@data, align: EIS::String.align)
+      raise "Memory run out when alloc #{@data}" if loc.nil?
 
-        refs << @elf.loc_to_vma(loc)
-        stream.pos = loc
-        write_string stream, @data
+      refs << @elf.loc_to_vma(loc)
+      stream.pos = loc
+      write_string stream, @data
       # end
       stream.pos = oloc
       stream.syswrite(refs.pack("L#{@count}"))

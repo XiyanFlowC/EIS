@@ -141,7 +141,7 @@ module EIS
     def write
       @tables.each do |cell|
         next if cell.type == :partial
-        puts "TableMan#read: will write #{cell.name}:#{cell.table.to_s}" if EIS::Core.eis_debug
+        puts "TableMan#read: will write #{cell.name}:#{cell.table}" if EIS::Core.eis_debug
         cell.table.write
       end
     end
