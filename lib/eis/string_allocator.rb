@@ -20,8 +20,8 @@ module EIS
       return loc unless loc.nil?
 
       leng = string.bytesize
-      leng = leng + align & ~(align - 1)
-      @alloc_tbl[string] = @perm_man.alloc(leng, align: align)
+      # leng = leng + align & ~(align - 1)
+      @alloc_tbl[string] = @perm_man.alloc(leng + 1, align: align)
     end
 
     ##
@@ -29,8 +29,8 @@ module EIS
     # as the ending.
     def register(loc, string, align: 8)
       leng = string.bytesize
-      leng = leng + align & ~(align - 1)
-      @perm_man.register(loc, leng)
+      # leng = leng + align & ~(align - 1)
+      @perm_man.register(loc, leng + 1, align: align)
     end
   end
 end

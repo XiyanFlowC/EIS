@@ -4,7 +4,11 @@ require "pry"
 
 EIS::Core.eis_debug = true # 如果需要检查 EIS 是否正常工作
 core = EIS::Core.new("example/test", "example/output", fpath: "example/ex_path1.xml")
-EIS::String.align = 1 # 我们发现 string 并没有对齐，预设的 8 在此不适用
+# EIS::String.align = 1
+# ↑：我们发现 string 并没有对齐，预设的 8 在此不适用。
+# 然而，由于部分区段依然对齐，这个可以不写。
+# 因为重叠是被接受的。
+# 但是，导入时，这个必须加上，否则空间将大为缩小。
 
 # BinStruct 为框架所用。即使是普通数组，这里也必须这样。
 class NameSingle < EIS::BinStruct
@@ -26,4 +30,5 @@ core.read # 按注册的读取
 core.save # 按读取的保存到文件
 
 # core.load # 载入文件
+# # binding.pry
 # core.write # 写入 ELF

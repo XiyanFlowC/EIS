@@ -232,7 +232,7 @@ module EIS
       oloc = stream.pos
       # @data.each do |s|
         loc = @perm.salloc(@data, align: EIS::String.align)
-        raise "Memory run out" if loc.nil?
+        raise "Memory run out when alloc #{@data}" if loc.nil?
 
         refs << @elf.loc_to_vma(loc)
         stream.pos = loc
