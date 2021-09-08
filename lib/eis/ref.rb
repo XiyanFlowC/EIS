@@ -54,7 +54,6 @@ module EIS
     def post_proc
       id = @tbl_man.get_id! @ref, @type, @limit.call
       @data = @tbl_man.cell_by_id id
-      @data = Table.new @ref, @limit.call, @type, @elf_man, is_vma: true
     end
 
     # def readref(stream)
@@ -86,7 +85,7 @@ module EIS
     # end
 
     def write(stream)
-      loc = @elf_man.vma_to_loc @data.table.location # 获取原始位置
+      loc = ref # 获取原始位置
       # loc = @elf_man.permission_man.alloc(@data.size * @data[0].size) if $eis_shift >= 2 # 激进的指针重整策略需要重新分配指针表空间
       # raise "Virtual memory run out" if loc.nil?
       rloc = [loc].pack("L<")[0] if @elf_man.elf_base.endian == :little
