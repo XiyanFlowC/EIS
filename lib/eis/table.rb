@@ -38,6 +38,7 @@ module EIS
       @count = count
       @type = type
       @elf = elf_man
+      @data = []
     end
 
     def to_s
@@ -188,6 +189,14 @@ module EIS
         ret << datum if datum.index == idx
       end
       ret
+    end
+
+    def update_data! data
+      loc = @location
+      @data.clear
+      data.each do |index, datum|
+        @data << Cell.new(loc, index.to_s, datum)
+      end
     end
 
     attr_reader :data

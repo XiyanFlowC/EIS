@@ -71,6 +71,8 @@ module EIS
       @tables << cell
     end
 
+    attr_reader :tables
+
     def each
       if block_given?
         @tables.each do |table|
@@ -139,6 +141,7 @@ module EIS
     def write
       @tables.each do |cell|
         next if cell.type == :partial
+        puts "TableMan#read: will write #{cell.name}:#{cell.table.to_s}" if EIS::Core.eis_debug
         cell.table.write
       end
     end

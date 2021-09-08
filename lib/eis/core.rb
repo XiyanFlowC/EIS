@@ -52,9 +52,10 @@ module EIS
     end
 
     def initialize(elf_path, target_elf = "output.elf", fpath: nil, fiomgr: EIS::XMLIO)
-      File.new(target_elf, "w").close unless File.exist? target_elf
+      # File.new(target_elf, "w").close unless File.exist? target_elf
       @elf = EIS::Core.elf = EIS::ElfMan.new elf_path
-      @out_elf = File.new(target_elf, "r+b")
+      @elf.elf_out = @out_elf = File.new(target_elf, "r+b")
+      warn "File length wierd!" if @out_elf.size != @elf.base_stream.size
       # @path = path
       # @tbls = Hash.new nil
       @permission_man = PermissiveMan.new
@@ -116,6 +117,14 @@ module EIS
     # def select(name)
     #   @tbls[name]
     # end
+
+    def tables
+      @table_manager.tables
+    end
+
+    def table_by_id
+      @table_manager.table_by_id
+    end
 
     def save
       @fiomgr.save

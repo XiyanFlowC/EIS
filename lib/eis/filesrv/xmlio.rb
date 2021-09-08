@@ -84,8 +84,10 @@ module EIS
       pm = xml.add_element("PermissiveBlocks", {"type" => "PermBlkGrp", "count" => @elf.permission_man.register_table.size})
       @permission_man.register_table.each do |e|
         entry = pm.add_element("PermissiveBlock")
-        entry.add_element("Location", {"base" => "16", "unit" => "byte"}).add_text(e.location.to_s(16))
-        entry.add_element("Length", {"base" => "10", "unit" => "byte"}).add_text(e.length.to_s)
+        entry.add_attribute("location", e.location.to_s(16))
+        entry.add_attribute("length", e.length.to_s(10))
+        # entry.add_element("Location", {"base" => "16", "unit" => "byte"}).add_text(e.location.to_s(16))
+        # entry.add_element("Length", {"base" => "10", "unit" => "byte"}).add_text(e.length.to_s)
       end
 
       doc.write file, 2
@@ -93,8 +95,8 @@ module EIS
     end
 
     def do_tblload(xmlele, tbl)
-      data = []
-      ele.elements.each do |e| # entries in table
+      data = Hash.new nil
+      xmlele.elements.each do |e| # entries in table
         cnt = Module.const_get(e.name).new # new instance of Type
 
         postpondread = []
@@ -160,9 +162,9 @@ module EIS
           do_tblload(txt, tbl)
         end
 
-        data << cnt
+        data[e["index"]] = cnt
       end
-      tbl.data = data
+      tbl.update_data! data
     end
 
     def load(strict)
@@ -181,12 +183,12 @@ module EIS
 
       root.each_element_with_attribute("type", "PermBlkGrp") do |ele|
         ele.each_element do |pm|
-          # TODO: Read in.
+          @permission_man.register(pm["location"].to_i(16), pm["length"].to_i(10), align: 1)
         end
+        @permission_man.global_merge
       end
 
       root.each_element_with_attribute("type", "PrimaryTable") do |ele| # load for tables
-        # @tbls.clear! # not implemented yet, TODO: implement it.
         tbl = @tbls.table_by_id(ele.name) # Codes is first.
         if tbl.nil?
           @tbls.register_table(
@@ -204,7 +206,6 @@ module EIS
 
       # 或许合并？
       root.each_element_with_attribute("type", "MultiRefedTable") do |ele|
-        # @tbls.clear! # not implemented yet, TODO: implement it.
         tbl = @tbls.table_by_id(ele.name) # Codes is first.
         if tbl.nil?
           @tbls.register_table(

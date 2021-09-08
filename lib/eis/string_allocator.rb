@@ -21,7 +21,7 @@ module EIS
 
       leng = string.bytesize
       leng = leng + align & ~(align - 1)
-      @alloc_tbl[string] = @perm_man.alloc(leng)
+      @alloc_tbl[string] = @perm_man.alloc(leng, align: align)
     end
 
     ##

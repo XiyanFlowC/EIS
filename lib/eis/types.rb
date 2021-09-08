@@ -230,14 +230,14 @@ module EIS
     def write(stream)
       refs = []
       oloc = stream.pos
-      @data.each do |s|
-        loc = @perm.salloc(s, align: EIS::String.align)
+      # @data.each do |s|
+        loc = @perm.salloc(@data, align: EIS::String.align)
         raise "Memory run out" if loc.nil?
 
         refs << @elf.loc_to_vma(loc)
-        stream.loc = loc
-        write_string stream, s
-      end
+        stream.pos = loc
+        write_string stream, @data
+      # end
       stream.pos = oloc
       stream.syswrite(refs.pack("L#{@count}"))
     end
@@ -262,7 +262,7 @@ module EIS
     def write_string(stream, s)
       p = (s.length + EIS::String.align & ~(EIS::String.align - 1)) - s.length
       stream.syswrite(s)
-      stream.syswrite('\0')
+      stream.syswrite("\0")
       stream.pos += p
     end
   end
