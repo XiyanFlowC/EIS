@@ -215,6 +215,11 @@ module EIS
       puts "geting string pointer at #{stream.pos.to_s(16)}" if EIS::Core.eis_debug
       refs = stream.sysread(4 * @count).unpack("L#{@count}")
 
+      if refs[0] == 0
+        @data = "(null)"
+        return
+      end
+
       oloc = stream.pos
       refs.each do |e|
         loc = @elf.vma_to_loc(e)
@@ -228,6 +233,12 @@ module EIS
     end
 
     def write(stream)
+      if @data == "(null)"
+        refs = [0]
+        stream.syswrite(refs.pack("L"))
+        return
+      end
+
       refs = []
       oloc = stream.pos
       # @data.each do |s|

@@ -79,6 +79,7 @@ module EIS
     def table(name, location, length, type)
       tbl = Table.new(location, length, type, @elf)
       @table_manager.register_table(tbl, name)
+      tbl
     end
 
     ##
@@ -107,11 +108,13 @@ module EIS
       # end
       @table_manager.read
       @permission_man.global_merge
+      nil
     end
 
     def write
       @permission_man.global_merge
       @table_manager.write
+      nil
     end
 
     # def select(name)
