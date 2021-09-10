@@ -164,7 +164,7 @@ module EIS
 
           tbl = @tbls.table_by_id id
           do_tblload(txt, tbl)
-          cnt.send("#{fld.name}=", @tbls.cell_by_id(id))
+          cnt.send("#{txt.name}=", @tbls.cell_by_id(id))
         end
 
         data[e["index"]] = cnt
