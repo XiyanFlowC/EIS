@@ -100,7 +100,7 @@ module EIS
       # --------------------------------
       types = %w[int8 int16 int32 int64 u_int8 u_int16 u_int32 u_int64]
       types.each do |type|
-        define_method :"#{type}" do |name, *params|
+        define_method :"#{type.delete("_")}" do |name, *params|
           count = handle_count(params)
 
           register_field(name, count, "EIS::#{type.camelcase}".constantize, [])
