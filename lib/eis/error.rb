@@ -24,7 +24,33 @@ module EIS
     ##
     # An default description to this error
     def to_s
-      "Argument #{argument_name} is incorrect, because: #{reason}"
+      "ArgumentError: Argument #{argument_name} is incorrect, because: #{reason}"
+    end
+  end
+
+  class DataMismatchError < ArgumentError
+    attr_reader :arg, :vali
+
+    def initialize(arg, vali)
+      super(arg, "#{vali} mismatch.")
+      @vali = vali
+    end
+
+    def to_s
+      "DataMismatchError: Argument #{@arg} is mismatch with #{@vali}."
+    end
+  end
+
+  class DataCorruptedError < EISError
+    attr_reader :data_name, :desc
+
+    def initialize data_name, desc
+      @data_name = data_name
+      @desc = desc
+    end
+
+    def to_s
+      "DataCorruptedError: Data #{@data_name} is corrupted. (#{@desc})"
     end
   end
 end

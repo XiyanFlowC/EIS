@@ -32,7 +32,7 @@ module EIS
     end
 
     def write(stream)
-      stream.syswrite(value.pack("c#{@data.count}"))
+      stream.syswrite(@data.pack("c#{@data.count}"))
     end
 
     def size
@@ -187,6 +187,11 @@ module EIS
   # 指向 C 风格字符串的指针。
   # ================================
   class String
+    class << self
+      attr_accessor :align
+      String.align = 8
+    end
+
     ##
     # 初始化+String+对象，需要计数和控制数组
     #
@@ -194,7 +199,10 @@ module EIS
     # +count+::  指向字符串指针的数量
     # +controls+:: 指定布局为，1: 容许段管理器; 2: elf管理器（解引用）
     def initialize(count, controls)
-      raise ArgumentError("count", "Can't load more than 1 string in only one") if count != 1
+      if count != 1
+        raise ArgumentError("count",
+          "Can't load more than 1 string in only one EIS::String")
+      end
 
       @count = count
       @perm = controls[1]
@@ -204,29 +212,32 @@ module EIS
     attr_accessor :data
 
     def read(stream)
+      puts "geting string pointer at #{stream.pos.to_s(16)}" if EIS::Core.eis_debug
       refs = stream.sysread(4 * @count).unpack("L#{@count}")
 
       oloc = stream.pos
       refs.each do |e|
         loc = @elf.vma_to_loc(e)
+        raise RangeError.new("vma out of range of true file") if loc.nil?
         stream.seek loc
         @data = fetch_string(stream) # FIXME: @data 应该是一个数组-Re：懒了，count!=1时直接报错(Line 198)。
-        @perm.register(loc, @data)
+        @perm.register(loc, @data, align: EIS::String.align)
       end
+
       stream.pos = oloc
     end
 
     def write(stream)
       refs = []
       oloc = stream.pos
-      @data.each do |s|
-        loc = @perm.salloc(s)
-        raise "Memory run out" if loc.nil?
+      # @data.each do |s|
+      loc = @perm.salloc(@data, align: EIS::String.align)
+      raise "Memory run out when alloc #{@data}" if loc.nil?
 
-        refs << @elf.loc_to_vma(loc)
-        stream.loc = loc
-        write_string stream, s
-      end
+      refs << @elf.loc_to_vma(loc)
+      stream.pos = loc
+      write_string stream, @data
+      # end
       stream.pos = oloc
       stream.syswrite(refs.pack("L#{@count}"))
     end
@@ -249,9 +260,9 @@ module EIS
     end
 
     def write_string(stream, s)
-      p = (s.length + 8 & ~7) - s.length
+      p = (s.length + EIS::String.align & ~(EIS::String.align - 1)) - s.length
       stream.syswrite(s)
-      stream.syswrite('\0')
+      stream.syswrite("\0")
       stream.pos += p
     end
   end

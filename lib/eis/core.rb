@@ -1,7 +1,8 @@
-require "rexml/document"
 require "active_support/all"
 
 require "eis/bin_struct"
+require "eis/table"
+require "eis/table_man"
 require "eis/elf_man"
 require "eis/error"
 require "eis/permissive_block"
@@ -10,6 +11,8 @@ require "eis/ref"
 require "eis/string_allocator"
 require "eis/symbol_man"
 require "eis/types"
+
+require "eis/filesrv/xmlio"
 
 module EIS
   ##
@@ -22,8 +25,7 @@ module EIS
 
   ##
   # = Exporting and Importing Core Class
-  # Provides an easy way to initialize the EIS environmet.
-  # Also provides a way to save and load to/from files so that
+  # Provides a way to save and load to/from files so that
   # external tools can make changes to the contents so that
   # the EISCore can load modified contents and imports the
   # modification to the elf.
@@ -49,149 +51,94 @@ module EIS
       attr_accessor :eis_shift, :eis_debug, :elf
     end
 
-    def initialize(elf_path, path = nil, target_elf = "output.elf")
-      File.new(target_elf, "w").close unless File.exist? target_elf
+    def initialize(elf_path, target_elf = "output.elf", fpath: nil, fiomgr: EIS::XMLIO)
+      # File.new(target_elf, "w").close unless File.exist? target_elf
       @elf = EIS::Core.elf = EIS::ElfMan.new elf_path
-      @out_elf = File.new(target_elf, "r+b")
-      @path = path
-      @tbls = Hash.new nil
+      @elf.elf_out = @out_elf = File.new(target_elf, "r+b")
+      warn "File length wierd!" if @out_elf.size != @elf.base_stream.size
+      # @path = path
+      # @tbls = Hash.new nil
+      @permission_man = PermissiveMan.new
+      @table_manager = TableMan.new @elf, @permission_man
+      @string_allocator = StringAllocator.new @permission_man
+      @fiomgr = fiomgr.new @elf, @table_manager, @permission_man, fpath unless fpath.nil?
+
+      EIS::BinStruct.elf = @elf
+      EIS::BinStruct.string_allocator = @string_allocator
+      EIS::BinStruct.table_manager = @table_manager
     end
 
     ##
     # Declare a new table
     #
     # = Parameters
-    # * _name_: table's name.
-    # * _location_: table's start memory address.
-    # * _length_: the count of entries in the table.
-    # * _type_: the entries' type.
+    # +name+:: table's name.
+    # +location+:: table's start memory address.
+    # +length+:: the count of entries in the table.
+    # +type+:: the entries' type.
     def table(name, location, length, type)
-      @tbls[name.to_s] = @elf.new_table(location, length, type)
+      tbl = Table.new(location, length, type, @elf)
+      @table_manager.register_table(tbl, name)
     end
 
     ##
     # Fetch data from elf.
     def read
-      @tbls.each do |k, e|
-        e.read
-      rescue => err
-        puts "When read #{k}: #{err}"
-        puts err.backtrace if EIS::Core.eis_debug
-      end
-      @elf.permission_man.global_merge
+      # refs = []
+      # @tbls.each do |k, e|
+      #   e.read
+      #   e.each_ref do |ref| # Add refered table to refs so that can read it later.
+      #     refs << ref unless @tbls.has_value? ref.data
+      #     # TODO: redirect the ref to the table which have existed already or write will failed.
+      #   end
+      # rescue => err
+      #   puts "When read #{k}: #{err}"
+      #   puts err.backtrace if EIS::Core.eis_debug
+      # end
+      # until refs.empty? # Read all refered table.
+      #   refs.each do |ref| # TODO: make single entry embedded in the ref will makes result easier to read.
+      #     @tbls["implicit_#{ref.ref.to_s(16).upcase}"] = ref.data
+      #     ref.data.read
+      #     ref.data.each_ref do |iref|
+      #       refs << iref unless @tbls.has_value? iref.data
+      #     end
+      #     refs.delete ref
+      #   end
+      # end
+      @table_manager.read
+      @permission_man.global_merge
     end
 
-    def select(name)
-      @tbls[name]
+    def write
+      @permission_man.global_merge
+      @table_manager.write
     end
 
-    ##
-    # Save data to file.
+    # def select(name)
+    #   @tbls[name]
+    # end
+
+    def tables
+      @table_manager.tables
+    end
+
+    def table_by_id id
+      @table_manager.table_by_id id
+    end
+
     def save
-      file = File.new @path, "w"
-      doc = REXML::Document.new
-      xml = doc.add_element("ELF", {"name" => @elf.base_stream.path, "version" => @elf.base_stream.mtime.to_s}) # root element
-
-      @tbls.each do |key, value| # save all tables
-        ele = xml.add_element(key, {"type" => "Table", "addr" => value.location.to_s, "size" => value.count.to_s})
-
-        do_save(ele, value)
-      end
-
-      # save permission data
-      pm = xml.add_element("PermissiveBlocks", {"type" => "EISCore", "count" => @elf.permission_man.register_table.size})
-      @elf.permission_man.register_table.each do |e|
-        entry = pm.add_element("PermissiveBlock")
-        entry.add_element("Location", {"base" => "16", "unit" => "byte"}).add_text(e.location.to_s(16))
-        entry.add_element("Length", {"base" => "10", "unit" => "byte"}).add_text(e.length.to_s)
-      end
-
-      doc.write file, 2
-      file.close
+      @fiomgr.save
     end
 
-    def load(mode: "r", strict: true)
-      doc = REXML::Document.new(File.new(@path, mode))
-
-      root = doc.root
-      if root.attributes["version"] != @elf.base_stream.mtime.to_s # base elf version mismatch
-        warn "WARN: The version of elf against the version of knowledge base"
-        return nil if strict
-      end
-
-      if root.attributes["name"] != @elf.base_stream.path
-        warn "WARN: Filenames mismatch."
-        return nil if strict
-      end
-
-      root.each_element_with_attribute("type", "Table") do |ele| # load for tables
-        tbl = select(ele.name)
-        data = []
-        ele.elements.each do |e| # entries in table
-          cnt = Module.const_get(e.name).new
-          e.elements.each do |fld| # every fileds
-            if fld.attributes["type"] == "Array"
-              tmp = []
-              fld.each_element do |entry|
-                if fld["base"].include? "Int"
-                  tmp << entry.text.splite.to_i
-                else
-                  raise "FIXME: Not Implement Yet"
-                end
-              end
-              cnt.send("#{fld.name}=", tmp)
-            elsif fld.attributes["type"] == "Ref"
-              cnt.send("#{fld.name}=", fld.text.strip.to_i(16))
-            else
-              cnt.send("#{fld.name}=", fld.text.strip)
-            end
-          end
-          data << cnt
-        end
-        tbl.data = data
-      end
+    def load(strict: true)
+      @fiomgr.load(true)
     end
 
-    attr_reader :tbls
+    # attr_reader :tbls
 
     protected
 
-    def read_tbl(ele)
-    end
-
-    ##
-    # Recursive daving routine
-    # = Parameters
-    # +xml+:: The xml node used by _REXML::Document_
-    # +val+:: Value that should be write
-    def do_save(xml, val)
-      i = 0
-      return nil if val.data.nil?
-
-      val.data.each do |e|
-        entry = xml.add_element(e.class.to_s, {"index" => i.to_s})
-        i += 1
-        e.fields.each do |k, v|
-          f = entry.add_element(k)
-          if v.instance_of?(Ref)
-            f.add_attribute("type", "Ref")
-            # f.add_attribute('refval', v.ref.to_s(16).upcase)
-            f.add_attribute("limiter", v.count.to_s)
-            f.add_text v.data.to_s(16)
-            # do_save f, v
-          elsif v.data.instance_of?(Array)
-            f.add_attribute("type", "Array")
-            f.add_attribute("size", v.data.size.to_s)
-            f.add_attribute("base", v.class.to_s)
-            v.data.each do |entry1|
-              f.add_element("entry").add_text(entry1.to_s)
-            end
-          else
-            f.add_attribute("type", v.class.to_s)
-            f.add_text v.data.to_s
-          end
-        end
-      end
-    end
+    # def read_tbl(ele)
+    # end
   end
 end

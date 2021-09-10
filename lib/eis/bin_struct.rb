@@ -20,6 +20,7 @@ module EIS
   # The registered method should handle:
   # * name
   # * length
+  #
   # and register the id, type and controls (as nil if unused) as a
   # Field into class holds
   class BinStruct
@@ -30,10 +31,17 @@ module EIS
       end
     end
 
+    def to_s
+      ans = "#{self.class.name} :\n"
+      @fields.each do |k, e|
+        ans << "#{e.class.name}[#{e.size}] #{k} = #{e.data}\n"
+      end
+    end
+
     def size
       ret = 0
       @fields.each do |k, e|
-        ret += e.size
+        ret += e.size * e.count
       end
 
       ret
@@ -43,17 +51,31 @@ module EIS
       @fields.dup
     end
 
+    def each_data
+      return nil unless block_given?
+      @fields.each do |_, entry|
+        yield entry
+      end
+    end
+
+    def each_ref
+      return nil unless block_given?
+      @fields.each do |_, entry|
+        yield entry if entry.is_a? EIS::Ref
+      end
+    end
+
     def read(stream)
-      # readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
+      readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
       @fields.each do |key, entry|
-        # readdelay << entry if entry.class == Ref
+        readdelay << entry if entry.instance_of? Ref # 或许将这个东西普遍化？
 
         entry.read(stream)
       end
 
-      # readdelay.each do |entry|
-      #   entry.readref(stream) # 此时再解引用，这时数量限制数据必然已经读入
-      # end # 现在暂时不需要。
+      readdelay.each do |entry|
+        entry.post_proc # 此时再解引用，这时数量限制数据必然已经读入
+      end
     end
 
     def write(stream)
@@ -69,9 +91,9 @@ module EIS
     class << self
       attr_accessor :fields_register_table
 
-      def elf
-        EIS::Core.elf
-      end
+      # def elf
+      #   EIS::Core.elf
+      # end
       # --------------------------------
       # 必须接受两个参数，按照约定，除了 name 以外都是可选的。
       # 第二项必需是数量，此后的选项不做要求，请自行约定。
@@ -81,17 +103,19 @@ module EIS
         define_method :"#{type}" do |name, *params|
           count = handle_count(params)
 
-          register_field(name, count, "EIS::#{type.capitalize}".constantize, [])
+          register_field(name, count, "EIS::#{type.camelcase}".constantize, [])
         end
       end
 
+      attr_accessor :elf, :string_allocator, :table_manager
+
       def string(name, *params)
         count = handle_count(params)
-        register_field(name, count, EIS::String, [elf.string_alloc, elf])
+        register_field(name, count, EIS::String, [EIS::BinStruct.string_allocator, EIS::BinStruct.elf])
       end
 
-      def ref(type, name, count)
-        register_field(name, count, EIS::Ref, [type.to_s.constantize, elf])
+      def ref(type, name, count = -1)
+        register_field(name, count, EIS::Ref, [type.to_s.constantize, EIS::BinStruct.elf, EIS::BinStruct.table_manager])
       end
 
       def handle_count(params)

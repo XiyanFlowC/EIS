@@ -1,3 +1,5 @@
+require "eis/permissive_block"
+
 module EIS
   ##
   # PermissiveBlock Manager
@@ -42,6 +44,8 @@ module EIS
         e.remove e.location, length
 
         @register_table.delete(e) if e.length == 0
+
+        puts "assigned #{loc.to_s(16)} for #{length} byte(s)." if EIS::Core.eis_debug
         return loc
       end
 
@@ -52,6 +56,7 @@ module EIS
     # Register a fragment
     def register(location, length, align: 8)
       length = length + align - 1 & ~(align - 1)
+      puts "PermMan: Registered #{location.to_s(16)}: #{length}" if EIS::Core.eis_debug
       @register_table.each do |entry|
         if entry.overlap? location, length
           entry.merge location, length
