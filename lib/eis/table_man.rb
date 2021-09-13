@@ -131,7 +131,7 @@ module EIS
     end
 
     def cell_by_id! id
-      return cell_by_id(id).nil? unless cell_by_id(id).nil?
+      return cell_by_id(id) unless cell_by_id(id).nil?
 
       idp = id.split ":"
       return nil if idp.size < 2

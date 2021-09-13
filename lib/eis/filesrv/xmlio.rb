@@ -26,13 +26,12 @@ module EIS
           f = entry.add_element(k)
           if v.instance_of?(Ref)
             f.add_attribute("type", "Ref")
-            # TODO: once the Ref enhanced, change to do_save for human readablity.
             f.add_attribute("refval", v.ref.to_s(16).upcase)
             f.add_attribute("limiter", v.limiter.to_s)
 
             # puts v.data
             if v.data.type == :single && v.data.ref_cnt == 1
-              do_save f, v.data.table
+              do_save(f, v.data.table)
               f.add_attribute("embed", "true")
               f.add_attribute("base", v.data.table.type.to_s)
             else
@@ -48,7 +47,7 @@ module EIS
             end
           else
             # f.add_attribute("type", v.class.to_s)
-            f.add_text v.data.to_s
+            f.add_text(v.data.to_s) # TODO: escape here
           end
         end
       end
@@ -116,7 +115,7 @@ module EIS
                 raise "FIXME: Not Implemented Yet"
               end
             end
-            cnt.send("#{fld.name}=", tmp)
+            cnt.send("#{fld.name}=", tmp) # TODO: de-escape here
           elsif fld.attributes["type"] == "Ref"
             if fld.attributes["embed"] == "false"
               cnt.send("#{fld.name}=", @tbls.cell_by_id!(fld["refname"].strip))
@@ -130,11 +129,11 @@ module EIS
               #   )
               # cnt.send("#{fld.name}=", @tbls.cell_by_id(tid))
             else
-              raise "'embed' attribute violate."
+              raise "'embed' attribute violate. Value can't be '#{fld.attributes["embed"]}'"
               # raise "属性值 'embed' 违约。"
             end
           else
-            cnt.send("#{fld.name}=", fld.text.strip)
+            cnt.send("#{fld.name}=", fld.text.strip) # TODO: de-escape here
           end
         end
         # For now every data that we have is read in.
@@ -147,7 +146,7 @@ module EIS
           count = if (limiter.chr >= "0" && limiter.chr <= "9") || limiter.chr == "-"
             limiter.to_i
           else
-            cnt.send(limiter)
+            cnt.send(limiter) # at here, limiter is the field's name.
           end
 
           # At here, we can use get_id! because it will create table automatically,
@@ -164,7 +163,7 @@ module EIS
 
           tbl = @tbls.table_by_id id
           do_tblload(txt, tbl)
-          cnt.send("#{txt.name}=", @tbls.cell_by_id(id))
+          cnt.send("#{txt.name}=", @tbls.cell_by_id(id)) # TODO: de-escape here
         end
 
         data[e["index"]] = cnt

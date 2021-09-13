@@ -191,6 +191,15 @@ module EIS
       ret
     end
 
+    ##
+    # = Update table data by Hash
+    # This method accept a Hash about a map from string to data object.
+    # It will **drop** old data and refill with given data.
+    # Each datum holds a key of string about its index, and a value of
+    # data object which will be the data stored in.
+    #
+    # == Parameters
+    # +data+:: The data Hash which holds the structure described before.
     def update_data! data
       loc = @location
       @data.clear
