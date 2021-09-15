@@ -160,7 +160,7 @@ module EIS
     end
 
     ##
-    # = Try to get the specified table
+    # = Try to get the specified refered table
     # Try get a table datum cell. The location, size, and count.
     # The result will be a <tt>EIS::TableMan::Cell</tt> or a nil if not a
     # corresponding table / partial table can be find.
@@ -171,7 +171,7 @@ module EIS
     #
     # *This method only check if here is a corresponding record.*
     #
-    # *No changes will be made to this manager.*
+    # *The ref_cnt counter will increse automatically.*
     #
     # == Parameters
     # +location+::  The location of where the table begins.
@@ -180,7 +180,7 @@ module EIS
     # +count+::     The count of the entries in the table.
     # +is_vma+::    _named_ if the location is the vma or not.
     #               DEFAULT: true.
-    def try_get_id location, type, count, is_vma: true
+    def ref_get_id location, type, count, is_vma: true
       location = is_vma ? @elf_man.vma_to_loc(location) : location
 
       each_single do |entry| # 为已经登记的隐含表
@@ -221,12 +221,12 @@ module EIS
     # but if failed, this method will try to create a new table that
     # matches the user's requirement. However, if a partial will be
     # created, the +name+ will be neutralized.
-    def get_id! location, type, count, name: nil, is_vma: true
+    def ref_get_id! location, type, count, name: nil, is_vma: true
       location = is_vma ? @elf_man.vma_to_loc(location) : location
       raise RangeError.new "location out of range." if location.nil?
 
       tblnm = name.nil? ? @implicit_prefix + location.to_s(16) : name
-      id = try_get_id location, type, count
+      id = ref_get_id location, type, count
       return id unless id.nil?
 
       each_primary do |cell|
@@ -235,7 +235,7 @@ module EIS
         datum = cell.table.datum_by_location(location)
         next if datum.nil?
 
-        # 对于已经存在的表的完全匹配必然已在 try_get_id 中命中并返回。
+        # 对于已经存在的表的完全匹配必然已在 ref_get_id 中命中并返回。
         # 故此处不必判断是否命中全表，到达此处的必然是部分引用。
         # 所以直接创建记录单元并返回 ID
         @tables << Cell.new("#{cell.name}:#{datum.index}", location, :partial, 1)

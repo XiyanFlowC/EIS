@@ -52,7 +52,7 @@ module EIS
     end
 
     def post_proc
-      id = @tbl_man.get_id! @ref, @type, @limit.call
+      id = @tbl_man.ref_get_id! @ref, @type, @limit.call
       @data = @tbl_man.cell_by_id id
     end
 

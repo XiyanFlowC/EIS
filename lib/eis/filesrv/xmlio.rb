@@ -149,13 +149,13 @@ module EIS
             cnt.send(limiter) # at here, limiter is the field's name.
           end
 
-          # At here, we can use get_id! because it will create table automatically,
-          # and the table created by get_id! is :single, which just as we want.
+          # At here, we can use ref_get_id! because it will create table automatically,
+          # and the table created by ref_get_id! is :single, which just as we want.
           # Moreover, if the tablse has existed already, this method will return
           # the id directly.
           # Remember! This method just called to CREATE the table, the table reachs
           # here should ALWAYS be :single!!
-          id = @tbls.get_id!(
+          id = @tbls.ref_get_id!(
             txt["refval"].to_i(16), # This is the vma, so is_vma is not need to set
             Module.const_get(txt["base"]),
             count
