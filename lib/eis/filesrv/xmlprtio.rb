@@ -203,12 +203,12 @@ module EIS
         @permission_man.global_merge
       end
 
-      root.each_element_with_attribute("type", "PrimaryTable") do |ele| # load for tables
+      root.each_element_with_attribute("type", "MultiRefedTable") do |ele| # load for tables
         tbl = @tbls.table_by_id(ele.name) # Codes is first.
         if tbl.nil?
           @tbls.register_table(
             tbl = Table.new(
-              ele["location"].to_i(16),
+              ele["addr"].to_i(16),
               ele["size"].to_i,
               Module.const_get(ele["base"]),
               @elf, is_vma: false
@@ -224,7 +224,7 @@ module EIS
       end
 
       # 或许合并？
-      root.each_element_with_attribute("type", "MultiRefedTable") do |ele|
+      root.each_element_with_attribute("type", "PrimaryTable") do |ele|
         tbl = @tbls.table_by_id(ele.name) # Codes is first.
         if tbl.nil?
           @tbls.register_table(
