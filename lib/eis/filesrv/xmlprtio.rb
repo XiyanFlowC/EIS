@@ -1,7 +1,7 @@
 require "rexml/document"
 
 module EIS
-  class XMLIO
+  class XMLPRTIO
     def initialize elf, tbls, perm_man, fpath
       raise ArgumentError.new("fpath", "fpath must be set.") if fpath.nil?
       @elf = elf

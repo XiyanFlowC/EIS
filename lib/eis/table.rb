@@ -99,11 +99,12 @@ module EIS
           inst.read(@elf.base_stream)
         rescue RangeError
           # raise "Table#read(): fatal: pointer error. @#{i}"
-          warn "Table#read(): Error: bad pointer."
+          warn "#{self}:\n\tFatal when read #{i}: bad pointer. Table cutted."
           @count = i
           return
-        ensure
-          warn "#{to_s}:\n\tFatal when read #{i}, read aborted and Table cutted."
+          # rescue StandardException => e
+          #   warn "#{self}:\n\tUnknown error, can't recover."
+          #   raise e
         end
         puts("Table#read(): read #{inst}") if EIS::Core.eis_debug
         cell.data = inst
