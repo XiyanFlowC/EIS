@@ -226,7 +226,7 @@ module EIS
         raise RangeError.new("vma out of range of true file") if loc.nil?
         stream.seek loc
         @data = fetch_string(stream) # FIXME: @data 应该是一个数组-Re：懒了，count!=1时直接报错(Line 198)。
-        @perm.register(loc, @data, align: @elf.align(loc, is_vma: false))
+        @perm.register(loc, @data, align: EIS::String.align)
       end
 
       stream.pos = oloc
