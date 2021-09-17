@@ -123,6 +123,10 @@ module EIS
       nil
     end
 
+    ##
+    # = Get Cell by Specified ID
+    # Get the record cell by specified id, if it is implicit refered, nothing
+    # will be return.
     def cell_by_id id
       @tables.each do |cell|
         return cell if cell.name == id
@@ -130,6 +134,10 @@ module EIS
       nil
     end
 
+    ##
+    # = Get or Create Cell by Specified ID
+    # Get a record cell by specified ID. If it is a implicit reference, create
+    # the cell and return
     def cell_by_id! id
       return cell_by_id(id) unless cell_by_id(id).nil?
 

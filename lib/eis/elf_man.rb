@@ -70,6 +70,21 @@ module EIS
       nil
     end
 
+    # = The Alignment Value of Specified Location
+    # Get the alignment value of specified location. The **first** aimed
+    # **section** will return it's vaule.
+    #
+    # == Parameters
+    # +loc+:: The location needed to get alignment information.
+    # +is_vma+:: _named_ Specified whether the location is a vma value.
+    #            DEFAULT: +true+
+    def align(loc, is_vma: true)
+      @elf_base.sections.each do |e|
+        return e.align if is_vma ? e.vma_in?(loc) : e.offset_in?(loc)
+      end
+      nil
+    end
+
     ##
     # = Fetch Data from Stream by Data of ElfMan
     # Process with the given template_str and return the result
