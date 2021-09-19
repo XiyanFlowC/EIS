@@ -45,6 +45,11 @@ module EIS
             v.data.each do |entry1|
               f.add_element("entry").add_text(entry1.to_s)
             end
+          elsif v.instance_of?(EIS::String)
+            f.add_attribute("type", "String")
+            f.add_attribute("refval", v.ref.to_s(16).upcase)
+            f.add_text(v.data.to_s)
+            # f.add_attribute("movable", v.shiftable.to_s)
           else
             # f.add_attribute("type", v.class.to_s)
             f.add_text(v.data.to_s) # TODO: escape here
@@ -132,6 +137,9 @@ module EIS
               raise "'embed' attribute violate. Value can't be '#{fld.attributes["embed"]}'"
               # raise "属性值 'embed' 违约。"
             end
+          elsif fld.attributes["type"] == "String"
+            cnt.fields[fld.name].ref = fld.attributes["refval"].strip.to_i(16)
+            cnt.send("#{fld.name}=", fld.text.strip)
           else
             cnt.send("#{fld.name}=", fld.text.strip) # TODO: de-escape here
           end

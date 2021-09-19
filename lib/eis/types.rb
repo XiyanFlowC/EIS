@@ -207,34 +207,42 @@ module EIS
       @count = count
       @perm = controls[1]
       @elf = controls[2]
+      @shiftable = controls[3]
     end
 
-    attr_accessor :data
+    attr_accessor :data, :ref, :shiftable
 
     def read(stream)
       puts "geting string pointer at #{stream.pos.to_s(16)}" if EIS::Core.eis_debug
-      refs = stream.sysread(4 * @count).unpack("L#{@count}")
+      # refs = stream.sysread(4 * @count).unpack("L#{@count}")
+      @ref = stream.sysread(4).unpack1("L")
 
-      if refs[0] == 0
+      # if refs[0] == 0
+      if @ref == 0
         @data = "(null)"
         return
       end
 
       oloc = stream.pos
-      refs.each do |e|
-        loc = @elf.vma_to_loc(e)
-        raise RangeError.new("vma out of range of true file") if loc.nil?
-        stream.seek loc
-        @data = fetch_string(stream) # FIXME: @data 应该是一个数组-Re：懒了，count!=1时直接报错(Line 198)。
-        @perm.register(loc, @data, align: EIS::String.align)
+      # refs.each do |e|
+      loc = @elf.vma_to_loc(@ref)
+      raise RangeError.new("vma out of range") if loc.nil?
+      stream.seek loc
+      @data = fetch_string(stream)
+      if @shiftable && EIS::Core.eis_shift >= 1
+        @perm.register(loc, @data, align: @elf.align(loc, is_vma: false)) # 可移动者
+      # else
+      #   @perm.assign(loc, @data, align: @elf.align(loc, is_vma: false))
       end
+      # end
 
       stream.pos = oloc
     end
 
     def write(stream)
       if @data == "(null)"
-        refs = [0]
+        # refs = [0]
+        @ref = 0
         stream.syswrite(refs.pack("L"))
         return
       end
@@ -242,8 +250,13 @@ module EIS
       refs = []
       oloc = stream.pos
       # @data.each do |s|
-      loc = @perm.salloc(@data, align: EIS::String.align)
-      raise "Memory run out when alloc #{@data}" if loc.nil?
+      if EIS::Core.eis_shift >= 1 && @shiftable
+        loc = @perm.salloc(@data, align: EIS::String.align) 
+        raise "Memory run out when alloc #{@data}" if loc.nil?
+      else
+        loc = @elf.vma_to_loc(@ref)
+        raise "Specified ref value is not included by file." if loc.nil?
+      end
 
       refs << @elf.loc_to_vma(loc)
       stream.pos = loc

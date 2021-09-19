@@ -109,9 +109,9 @@ module EIS
 
       attr_accessor :elf, :string_allocator, :table_manager
 
-      def string(name, *params)
+      def string(name, *params, shiftable: true)
         count = handle_count(params)
-        register_field(name, count, EIS::String, [EIS::BinStruct.string_allocator, EIS::BinStruct.elf])
+        register_field(name, count, EIS::String, [EIS::BinStruct.string_allocator, EIS::BinStruct.elf, shiftable])
       end
 
       def ref(type, name, count = -1)

@@ -105,6 +105,10 @@ module EIS
           # rescue StandardException => e
           #   warn "#{self}:\n\tUnknown error, can't recover."
           #   raise e
+        rescue EOFError
+          warn "#{self}:\n\tFatal when read #{i}: hit EOF. Table cutted."
+          @count = i
+          return
         end
         puts("Table#read(): read #{inst}") if EIS::Core.eis_debug
         cell.data = inst
