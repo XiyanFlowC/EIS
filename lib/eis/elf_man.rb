@@ -80,7 +80,7 @@ module EIS
     #            DEFAULT: +true+
     def align(loc, is_vma: true)
       @elf_base.sections.each do |e|
-        return e.header.sh_align if e.header.sh_offset <= (is_vma ? vma_to_loc(loc) : loc) &&
+        return e.header.sh_addralign if e.header.sh_offset <= (is_vma ? vma_to_loc(loc) : loc) &&
           e.header.sh_offset + e.header.sh_size > (is_vma ? vma_to_loc(loc) : loc)
       end
       nil

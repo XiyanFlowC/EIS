@@ -231,8 +231,8 @@ module EIS
       @data = fetch_string(stream)
       if @shiftable && EIS::Core.eis_shift >= 1
         @perm.register(loc, @data, align: @elf.align(loc, is_vma: false)) # 可移动者
-      # else
-      #   @perm.assign(loc, @data, align: @elf.align(loc, is_vma: false))
+        # else
+        #   @perm.assign(loc, @data, align: @elf.align(loc, is_vma: false))
       end
       # end
 
@@ -251,7 +251,7 @@ module EIS
       oloc = stream.pos
       # @data.each do |s|
       if EIS::Core.eis_shift >= 1 && @shiftable
-        loc = @perm.salloc(@data, align: EIS::String.align) 
+        loc = @perm.salloc(@data, align: EIS::String.align)
         raise "Memory run out when alloc #{@data}" if loc.nil?
       else
         loc = @elf.vma_to_loc(@ref)
