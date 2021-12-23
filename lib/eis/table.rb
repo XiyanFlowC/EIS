@@ -1,4 +1,5 @@
 require "eis/ref"
+require "eis/svc_hub"
 require "eis/bin_struct"
 
 module EIS
@@ -11,18 +12,20 @@ module EIS
   # * Provides enough free space so that user can change it's behavior
   #
   # == Example
-  # <tt>tbl = Table.new 0x2ff59d3, 32, Dialog, elf
-  # tbl.read do |entry|
-  #   puts entry.id, entry.text
-  # end
   #
-  # tbl.each do |entry|
-  #   entry.id = 5 if entry.text == 'Set up.'
-  # end
+  #   tbl = Table.new 0x2ff59d3, 32, Dialog, elf
+  #   tbl.read do |entry|
+  #     puts entry.id, entry.text
+  #   end
   #
-  # outelf = File.new('./output.elf', 'wb')
-  # elf.output = outelf
-  # tbl.write #this action will sync the modifications to elf output stream</tt>
+  #   tbl.each do |entry|
+  #     entry.id = 5 if entry.text == 'Set up.'
+  #   end
+  #
+  #   outelf = File.new('./output.elf', 'wb')
+  #   elf.output = outelf
+  #   tbl.write #this action will sync the modifications to elf output stream
+  #
   class Table
     ##
     # Create a new table instance
@@ -31,14 +34,23 @@ module EIS
     # +location+::  +Number+ A number to record where the table located.
     # +count+::     +Number+ How many entries this table contains.
     # +type+::      +EIS::BinStruct+ The type of entry.
-    def initialize(location, count, type, elf_man, is_vma: true)
-      raise ArgumentError.new("elf_man", "#{@elf.class} against to EIS::ElfMan") if elf_man.class != ElfMan
+    def initialize(location, count, type, svc_hub, is_vma: true)
+      unless type.superclass == EIS::BinStruct
+        raise ArgumentError.new(
+          "type",
+          "Its superclass #{type.superclass} against to EIS::BinStruct"
+        )
+      end
+      raise ArgumentError.new("svc_hub", "#{svc_hub.class} against to EIS::SvcHub") if svc_hub.class != EIS::SvcHub
+      elf_man = svc_hub.service "elf_man"
 
+      @svc_hub = svc_hub
       @location = is_vma ? elf_man.vma_to_loc(location) : location
       @count = count
       @type = type
       @elf = elf_man
       @data = []
+      @size = 0
     end
 
     def to_s
@@ -47,9 +59,11 @@ module EIS
 
     ##
     # Get the total size of this table.
-    def size
-      @type.size * @count
-    end
+    # def size
+    #   # @type.size * @count
+    #   @size
+    # end
+    attr_reader :size
 
     def eql? other
       other.location == @location && other.count == @count
@@ -95,7 +109,8 @@ module EIS
         puts("Table#read(): will read at #{@elf.base_stream.pos.to_s(16)}") if EIS::Core.eis_debug
         cell = Cell.new @elf.base_stream.pos, i.to_s
         begin
-          inst = @type.new
+          inst = @type.new @svc_hub
+          # inst = @svc_hub.di @type
           inst.read(@elf.base_stream)
         rescue RangeError
           # raise "Table#read(): fatal: pointer error. @#{i}"
@@ -114,6 +129,7 @@ module EIS
         cell.data = inst
         @data << cell
         i += 1
+        @size += inst.size
         yield(inst) if block_given?
       end
     end

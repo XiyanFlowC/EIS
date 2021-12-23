@@ -1,3 +1,5 @@
+require "eis/bin_struct"
+
 module EIS
   ##
   # Pointer deref, co-operate with BinStruct, Core, Table
@@ -12,12 +14,15 @@ module EIS
     # = Controls
     # * <tt>controls[1]</tt> The type that this ref point to
     # * <tt>controls[2]</tt> The _ElfMan_ (for vma-loc calc)
-    def initialize(count, controls)
-      @type = controls[1]
-      @limiter = count
-      @limit = count.instance_of?(Symbol) ? controls[0].method(count) : -> { count }
-      @elf_man = controls[2]
-      @tbl_man = controls[3]
+    def initialize(elf_man, table_man)
+      @elf_man = elf_man
+      @tbl_man = table_man
+    end
+
+    def handle_parameter bin_struct, type, limiter = -1
+      @type = type
+      @limiter = limiter
+      @limit = count.instance_of?(Symbol) ? bin_struct.method(count) : -> { count }
     end
 
     def size
@@ -29,7 +34,7 @@ module EIS
     end
 
     attr_reader :limiter
-    attr_accessor :data # , :ref # , :count # , :ref
+    attr_accessor :data
 
     def ref
       @elf_man.loc_to_vma @data.type == :partial ? @data.table : @data.table.location
@@ -102,4 +107,6 @@ module EIS
       stream.seek nloc # 恢复流位置
     end
   end
+
+  EIS::BinStruct.define_type "ref", EIS::Ref
 end

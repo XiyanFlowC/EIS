@@ -3,7 +3,7 @@ require "eis/table"
 module EIS
   class TableMan
     ##
-    # The initializer. Needed parameters:
+    # The initializer. Needing parameters:
     # * elf_man: to check the elf statement.
     # * perm_man: to handle the permission block.
     #   (When the system is set to aggressive, realloc the table)
@@ -15,9 +15,10 @@ module EIS
     #   the table's id will be changed. If so, after that, the outer codes need to
     #   requery the name by a table's unchangable properties. DEFAULT: false.
     #   __WARN__: Neutralized.
-    def initialize elf_man, perm_man, implicit_prefix: "implicit_", enable_rename: false
+    def initialize elf_man, permissive_man, svc_hub, implicit_prefix: "implicit_", enable_rename: false
       @elf_man = elf_man
-      @perm_man = perm_man
+      @perm_man = permissive_man
+      @svc_hub = svc_hub
       @implicit_prefix = implicit_prefix
       @enable_rename = enable_rename
       @tables = []
@@ -130,6 +131,24 @@ module EIS
       nil
     end
 
+    ##
+    # = Force Get a Cell by Given ID
+    # Force table manager return a cell by given ID. If the specified
+    # ID does not have a corresponding cell in this table manager, the
+    # table manager will create a cell whose type is +:partial+.
+    #
+    # This feature is designed to be used when a field refered a point
+    # IN ANOTHER TABLE, so this method will check whether the given
+    # ID is in the table manager, and if so, return it directly, or
+    # check the id format. If the ID format is not the format of the
+    # "partial table", it will return +nil+. Or if the specified table
+    # is not exist, it will also return +nil+. If the specified table
+    # is exist, it will create a new "partial" cell that points to the
+    # corresponding table and return it.
+    #
+    # == Parameters
+    # +id+:: The ID of the cell wanted to get. The id format is
+    #        explained in +TableMan#ref_get_id+.
     def cell_by_id! id
       return cell_by_id(id) unless cell_by_id(id).nil?
 
@@ -243,7 +262,7 @@ module EIS
       end
       # 对于到达这里的项，其表一定尚未创建。
       # 故其必为 :single ，创建新的 Table 容纳之，并创建记录单元。
-      table = Table.new(location, count, type, @elf_man, is_vma: false)
+      table = Table.new(location, count, type, @svc_hub, is_vma: false)
       @tables << Cell.new(tblnm, table, :single, 1)
       tblnm
     end

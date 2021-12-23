@@ -15,16 +15,16 @@ module EIS
         val
       end
     end
+
+    def handle_parameter(_, count = 1)
+      @count = count
+    end
   end
 
   # ================================
   # 解析８位整型数据
   # ================================
   class Int8
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -44,10 +44,6 @@ module EIS
   # 解析１６位整型数据
   # ================================
   class Int16
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -64,10 +60,6 @@ module EIS
   end
 
   class Int32
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -84,10 +76,6 @@ module EIS
   end
 
   class Int64
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -104,10 +92,6 @@ module EIS
   end
 
   class UInt8
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -124,10 +108,6 @@ module EIS
   end
 
   class UInt16
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -144,10 +124,6 @@ module EIS
   end
 
   class UInt32
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -164,10 +140,6 @@ module EIS
   end
 
   class UInt64
-    def initialize(count, _)
-      @count = count
-    end
-
     include NumericDataAccess
 
     def read(stream)
@@ -198,16 +170,19 @@ module EIS
     # = 参数
     # +count+::  指向字符串指针的数量
     # +controls+:: 指定布局为，1: 容许段管理器; 2: elf管理器（解引用）
-    def initialize(count, controls)
+    def initialize(string_allocator, elf_man)
+      @perm = string_allocator
+      @elf = elf_man
+    end
+
+    def handle_parameter _, count = 1, shiftable = true
       if count != 1
         raise ArgumentError("count",
           "Can't load more than 1 string in only one EIS::String")
       end
 
       @count = count
-      @perm = controls[1]
-      @elf = controls[2]
-      @shiftable = controls[3]
+      @shiftable = shiftable
     end
 
     attr_accessor :data, :ref, :shiftable

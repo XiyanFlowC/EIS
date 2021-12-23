@@ -6,6 +6,21 @@ module EIS
   end
 
   ##
+  # OperationViolationError, raised when an operation is invalid to
+  # a class due to it's restraints or current status.
+  class OperationViolationError < EISError
+    def initialize(operation, reason, inst = nil)
+      @operation = operation
+      @reason = reason
+      @inst = inst.to_s
+    end
+
+    def to_s
+      "#{@inst}: Due to #{@reason}, #{@operation} is aborted."
+    end
+  end
+
+  ##
   # ArgumentError, raised when an unexpected value be passed to
   # routine.
   #
@@ -24,7 +39,7 @@ module EIS
     ##
     # An default description to this error
     def to_s
-      "ArgumentError: Argument #{argument_name} is incorrect, because: #{reason}"
+      "ArgumentError: Argument #{@argument_name} is incorrect, because: #{@reason}"
     end
   end
 

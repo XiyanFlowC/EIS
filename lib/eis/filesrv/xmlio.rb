@@ -11,7 +11,7 @@ module EIS
     end
 
     ##
-    # Recursive daving routine
+    # Recursive saving routine
     # = Parameters
     # +xml+:: The xml node used by _REXML::Document_
     # +val+:: Value that should be write
@@ -87,7 +87,7 @@ module EIS
       end
 
       # save permission data
-      pm = xml.add_element("PermissiveBlocks", {"type" => "PermBlkGrp", "count" => @elf.permission_man.register_table.size})
+      pm = xml.add_element("PermissiveBlocks", {"type" => "PermBlkGrp", "count" => @permission_man.register_table.size})
       @permission_man.register_table.each do |e|
         entry = pm.add_element("PermissiveBlock")
         entry.add_attribute("location", e.location.to_s(16))

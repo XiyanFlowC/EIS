@@ -11,18 +11,11 @@ require "eis/ref"
 require "eis/string_allocator"
 require "eis/symbol_man"
 require "eis/types"
+require "eis/svc_hub"
 
 require "eis/filesrv/xmlio"
 
 module EIS
-  ##
-  # A _Struct_ to store the meta data of fields in _BinStruct_
-  #
-  # = Fields
-  # _:id_::     The appear sort of this field
-  # _:type_::   The type of this field
-  Field = Struct.new(:type, :count, :control)
-
   ##
   # = Exporting and Importing Core Class
   # Provides a way to save and load to/from files so that
@@ -48,25 +41,25 @@ module EIS
     # 请不要设为2，激进的指针重整策略现在暂不可用
     @eis_debug = nil
     class << self
-      attr_accessor :eis_shift, :eis_debug, :elf
+      attr_accessor :eis_shift, :eis_debug
     end
 
     def initialize(elf_path, target_elf = "output.elf", fpath: nil, fiomgr: EIS::XMLIO)
       # File.new(target_elf, "w").close unless File.exist? target_elf
-      @elf = EIS::Core.elf = EIS::ElfMan.new elf_path
+      @elf = EIS::ElfMan.new elf_path
       @elf.elf_out = @out_elf = File.new(target_elf, "r+b")
       warn "File length wierd!" if @out_elf.size != @elf.base_stream.size
-      # @path = path
-      # @tbls = Hash.new nil
-      @permission_man = PermissiveMan.new
-      @table_manager = TableMan.new @elf, @permission_man
-      @string_allocator = StringAllocator.new @permission_man
-      @fiomgr = fiomgr.new @elf, @table_manager, @permission_man, fpath unless fpath.nil?
 
-      EIS::BinStruct.elf = @elf
-      EIS::BinStruct.string_allocator = @string_allocator
-      EIS::BinStruct.table_manager = @table_manager
+      @svc_hub = SvcHub.new
+      @svc_hub.register_service @elf
+      @permission_man = @svc_hub.acsvc PermissiveMan
+      @string_allocator = @svc_hub.acsvc StringAllocator
+      @table_manager = @svc_hub.acsvc TableMan
+
+      @fiomgr = fiomgr.new @elf, @table_manager, @permission_man, fpath unless fpath.nil?
     end
+
+    attr_reader :svc_hub
 
     ##
     # Declare a new table
@@ -77,7 +70,7 @@ module EIS
     # +length+:: the count of entries in the table.
     # +type+:: the entries' type.
     def table(name, location, length, type)
-      tbl = Table.new(location, length, type, @elf)
+      tbl = Table.new(location, length, type, @svc_hub)
       @table_manager.register_table(tbl, name)
       tbl
     end
@@ -85,27 +78,6 @@ module EIS
     ##
     # Fetch data from elf.
     def read
-      # refs = []
-      # @tbls.each do |k, e|
-      #   e.read
-      #   e.each_ref do |ref| # Add refered table to refs so that can read it later.
-      #     refs << ref unless @tbls.has_value? ref.data
-      #     # TODO: redirect the ref to the table which have existed already or write will failed.
-      #   end
-      # rescue => err
-      #   puts "When read #{k}: #{err}"
-      #   puts err.backtrace if EIS::Core.eis_debug
-      # end
-      # until refs.empty? # Read all refered table.
-      #   refs.each do |ref| # TODO: make single entry embedded in the ref will makes result easier to read.
-      #     @tbls["implicit_#{ref.ref.to_s(16).upcase}"] = ref.data
-      #     ref.data.read
-      #     ref.data.each_ref do |iref|
-      #       refs << iref unless @tbls.has_value? iref.data
-      #     end
-      #     refs.delete ref
-      #   end
-      # end
       @table_manager.read
       @permission_man.global_merge
       nil

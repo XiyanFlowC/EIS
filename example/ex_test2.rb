@@ -4,7 +4,7 @@ require "pry"
 
 EIS::Core.eis_debug = true # 如果需要检查 EIS 是否正常工作
 core = EIS::Core.new("example/test", "example/output", fpath: "example/ex_path1.xml")
-EIS::String.align = 1
+# EIS::String.align = 1
 # 逆向 ELF 得出：
 # 我们发现 string 并没有对齐，预设的 8 在此不适用。
 # 然而，由于部分区段依然对齐，这个可以不写。
@@ -25,7 +25,7 @@ class RefIdx < EIS::BinStruct
   int8 :name, 32
   int32 :sta
   int32 :end
-  ref Dialog, :dialog # 这里定义了到其他表的引用。像这样写就好。注意被引用的表必须先于此表声明
+  ref :dialog, Dialog # 这里定义了到其他表的引用。像这样写就好。注意被引用的表必须先于此表声明
 end
 
 core.table("Narrators", 0x3020, 15, NameSingle) # 注意这里是内存地址，因为如果不是内存地址你压根用不到这套系统

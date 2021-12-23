@@ -1,6 +1,6 @@
 require "elftools"
 require "eis/permissive_man"
-require "eis/table"
+require "eis/table_man"
 
 module EIS
   ##
@@ -15,8 +15,9 @@ module EIS
     # +elf_file+:: Refer to _ElfMan_'s Initializer's Parameters section.
     def initialize(elf_file)
       bind!(elf_file)
-      @permission_man = PermissiveMan.new
-      # @string_alloc = StringAllocator.new(@permission_man)
+      # @permission_man = PermissiveMan.new
+      # @string_allocator = StringAllocator.new(@permission_man)
+      # @table_man = TableMan.new(self, @permission_man)
       # @symbol_man = SymbolMan.new self
     end
 
@@ -40,12 +41,12 @@ module EIS
     # The base of the module, ELFTools::ELFFile
     attr_reader :elf_base
     # The manager to record where is usable for Refered tables.
-    attr_reader :permission_man
+    # attr_reader :permission_man
     # The base stream of binded elf file.
     attr_reader :base_stream
     # The stream of output elf file.
     attr_accessor :elf_out
-    # attr_reader :string_alloc
+    # attr_reader :string_allocator, :table_manager
 
     ##
     # Return first matched segment corresponding to input-value
@@ -95,6 +96,10 @@ module EIS
     # l, i, h, c for signed longlong, long, short, and char,
     # as well as L, I, H, C for unsigned longlong, long, short, and char.
     #
+    # After the char, a char between 0 and 9 is acceptable. Or it will be
+    # failed. This number specified the time of the data type repeated.
+    # Namely, the "llllll" is equivalent with "l6".
+    #
     # And, for pointer support, if the elf is 32-bit recognize r as a
     # 32-bit pointer and R as a 64-bit pointer. Or the elf is 64-bit, r
     # will represent 64-bit pointer and R for 32-bit pointer. If the pointer
@@ -114,61 +119,65 @@ module EIS
     # +shiftable+:: _named_ Whether the data can be shifted. If so, the area will be marked in the permission_man.
     #
     # == Examples
-    # <tt>elf.fetch_data(0x25ff20, "hhhhiil", mode: :vma)</tt>
-    # <tt>elf.fetch_data(0x255ffc, "hhhh", mode: :offset)</tt>
-    # <tt>elf.fetch_data(0x1000, "llll")</tt>
+    # <tt>elf.fetch_data(0x25ff20, "h4iil", mode: :vma)</tt>
+    # <tt>elf.fetch_data(0x255ffc, "h4", mode: :offset)</tt>
+    # <tt>elf.fetch_data(0x1000, "l4")</tt>
     def fetch_data(location, template_str, mode: :vma, shiftable: false)
-      ori_loc = @base_stream.loc
+      # ori_loc = @base_stream.loc
       @base_stream.seek(location) if mode == :offset
       @base_stream.seek(vma_to_loc(location)) if mode == :vma
 
       unpackstr = ""
       length = 0
+      tmplength = 0
+      grplength = 0
       refs = []
       idx = 0
       template_str.each_char do |c|
+        if c >= "0" || c <= "9"
+          raise ArgumentError.new "template_str", "Invalid format" if tmplength == 0
+          time = c.codepoints[0] - 48 # 48 for ASCII of '0'
+          unpackstr << c
+          grplength += grplength * 10 + tmplength * time
+          next
+        else
+          length += grplength > 0 ? grplength : tmplength
+          tmplength = grplength = 0
+        end
         # unsigned
         if c == "I"
-          length += 4
+          tmplength = 4
           unpackstr << "L>" if @elf_base.endian == :big
           unpackstr << "L<" if @elf_base.endian == :little
-        end
-        if c == "H"
-          length += 2
+        elsif c == "H"
+          tmplength = 2
           unpackstr << "S>" if @elf_base.endian == :big
           unpackstr << "S<" if @elf_base.endian == :little
-        end
-        if c == "C"
-          length += 1
+        elsif c == "C"
+          tmplength = 1
           unpackstr << "C"
-        end
-        if c == "L"
-          length += 8
+        elsif c == "L"
+          tmplength = 8
           unpackstr << "Q>" if @elf_base.endian == :big
           unpackstr << "Q<" if @elf_base.endian == :little
-        end
         # signed
-        if c == "i"
-          length += 4
+        elsif c == "i"
+          tmplength = 4
           unpackstr << "l>" if @elf_base.endian == :big
           unpackstr << "l<" if @elf_base.endian == :little
-        end
-        if c == "h"
-          length += 2
+        elsif c == "h"
+          tmplength = 2
           unpackstr << "s>" if @elf_base.endian == :big
           unpackstr << "s<" if @elf_base.endian == :little
-        end
-        if c == "c"
-          length += 1
+        elsif c == "c"
+          tmplength = 1
           unpackstr << "c"
-        end
-        if c == "l"
-          length += 8
+        elsif c == "l"
+          tmplength = 8
           unpackstr << "q>" if @elf_base.endian == :big
           unpackstr << "q<" if @elf_base.endian == :little
-        end
         # refer auto conv
-        if c == "r" || c == "R"
+        elsif c == "r" || c == "R"
           t = -1
           if @elf_base.instance_of?(32)
             t = 0 if c == "r"
@@ -178,15 +187,17 @@ module EIS
             t = 0 if c == "r"
           end
           if t == 1
-            length += 8
+            tmplength = 8
             unpackstr << "Q>" if @elf_base.endian == :big
             unpackstr << "Q<" if @elf_base.endian == :little
           else
-            length += 4
+            tmplength = 4
             unpackstr << "L>" if @elf_base.endian == :big
             unpackstr << "L<" if @elf_base.endian == :little
           end
           refs << idx
+        else
+          raise ArgumentError.new("template_str", "Invalid char #{c}")
         end
         idx += 1
       end
@@ -198,7 +209,7 @@ module EIS
         ans[refi] = vma_to_loc ans[refi]
       end
 
-      @base_stream.loc = ori_loc # 恢复本来位置，保证其他系统正常。
+      # @base_stream.loc = ori_loc # 恢复本来位置，保证其他系统正常。
       ans
     end
   end

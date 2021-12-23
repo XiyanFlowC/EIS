@@ -2,17 +2,35 @@ require "eis/types"
 
 module EIS
   ##
-  # The basic unit to dear with the exportation and importation
+  # A _Struct_ to store the meta data of fields in _BinStruct_
   #
-  # = Example
-  # <tt>
-  # class A < EIS::BinStruct
-  #   int8 :test, 4
-  #   int16 :limit
-  #   ref A, length = 999
-  # end
-  # </tt>
-  # = Remarks
+  # = Fields
+  # _:type_::   The type of this field
+  # _:params::  The parameters that passed by the definating
+  #             function.
+  Field = Struct.new(:type, :params)
+
+  ##
+  # = Binary Structure Managing Centre
+  # The basic unit to dear with the exportation and importation.
+  # You needn't initial this manually. The +EIS::Table+ is designed
+  # to deal with it.
+  #
+  # This class will be used when every call
+  #
+  # This class is an interface between data parsers and elfman, so
+  # the mess of this class is not a matter. But it is very welcome
+  # if you want to optimize the structure.
+  #
+  # == Example
+  #
+  #   class A < EIS::BinStruct
+  #     int8 :test, 4
+  #     int16 :limit
+  #     ref A, length = 999
+  #   end
+  #
+  # == Remarks
   # The methods used in the declair should be mixin or by other
   # methods to add.
   #
@@ -24,10 +42,12 @@ module EIS
   # and register the id, type and controls (as nil if unused) as a
   # Field into class holds
   class BinStruct
-    def initialize
+    def initialize svc_hub
       @fields = {}
       fields_register_table.each do |name, cnt|
-        @fields[name] = cnt.type.new(cnt.count, [self] + cnt.control)
+        # @fields[name] = cnt.type.new(cnt.count, [self] + cnt.control)
+        @fields[name] = svc_hub.di cnt.type
+        @fields[name].handle_parameter self, *cnt.params
       end
     end
 
@@ -41,7 +61,7 @@ module EIS
     def size
       ret = 0
       @fields.each do |k, e|
-        ret += e.size * e.count
+        ret += e.size
       end
 
       ret
@@ -68,7 +88,7 @@ module EIS
     def read(stream)
       readdelay = [] # 稍后再读取的引用，确保无论数量限制先后，都能正确读取
       @fields.each do |key, entry|
-        readdelay << entry if entry.class.method_defined? :post_proc # 普遍化
+        readdelay << entry if entry.class.method_defined? :post_proc
 
         entry.read(stream)
       end
@@ -91,41 +111,18 @@ module EIS
     class << self
       attr_accessor :fields_register_table
 
-      # def elf
-      #   EIS::Core.elf
-      # end
-      # --------------------------------
-      # 必须接受两个参数，按照约定，除了 name 以外都是可选的。
-      # 第二项必需是数量，此后的选项不做要求，请自行约定。
-      # --------------------------------
-      types = %w[int8 int16 int32 int64 u_int8 u_int16 u_int32 u_int64]
-      types.each do |type|
-        define_method :"#{type.delete("_")}" do |name, *params|
-          count = handle_count(params)
-
-          register_field(name, count, "EIS::#{type.camelcase}".constantize, [])
+      def define_type type_name, type_class
+        singleton_class.define_method :"#{type_name}" do |name, *params|
+          register_field(name, type_class, params)
         end
       end
 
-      attr_accessor :elf, :string_allocator, :table_manager
-
-      def string(name, *params, shiftable: true)
-        count = handle_count(params)
-        register_field(name, count, EIS::String, [EIS::BinStruct.string_allocator, EIS::BinStruct.elf, shiftable])
+      types = %w[int8 int16 int32 int64 u_int8 u_int16 u_int32 u_int64 string]
+      types.each do |type|
+        BinStruct.define_type type.delete("_"), "EIS::#{type.camelcase}".constantize
       end
 
-      def ref(type, name, count = -1)
-        register_field(name, count, EIS::Ref, [type.to_s.constantize, EIS::BinStruct.elf, EIS::BinStruct.table_manager])
-      end
-
-      def handle_count(params)
-        return 1 if params.count == 0
-        raise ArgumentError.new "count", "count must be a number but #{params[0].class}" if params[0].class != Integer
-
-        params[0]
-      end
-
-      def register_field(name, count, type, controls)
+      def register_field(name, type, params)
         class_eval <<-EOD, __FILE__, __LINE__ + 1
           def #{name}
             @fields["#{name}"].data
@@ -136,7 +133,7 @@ module EIS
           end
         EOD
         @fields_register_table ||= {}
-        @fields_register_table[name.to_s] = Field.new(type, count, controls)
+        @fields_register_table[name.to_s] = Field.new(type, params)
       end
     end
   end
