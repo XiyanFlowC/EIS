@@ -4,7 +4,7 @@ require "pry"
 
 EIS::Core.eis_debug = true # 如果需要检查 EIS 是否正常工作
 core = EIS::Core.new("example/test", "example/output", fpath: "example/ex_path1.xml")
-# EIS::String.align = 1
+EIS::String.align = 1
 # 逆向 ELF 得出：
 # 我们发现 string 并没有对齐，预设的 8 在此不适用。
 # 然而，由于部分区段依然对齐，这个可以不写。
@@ -34,10 +34,10 @@ core.table("Narrators", 0x3020, 15, NameSingle) # 注意这里是内存地址，
 core.table("TalkData", 0x3280, 36, Dialog) # 被引用的表
 core.table("TalkIdx", 0x3060, 12, RefIdx) # dialog 字段解析时将命中 TalkData 并被自动设置
 
-core.read # 按注册的读取
-# binding.pry # 如果需要检查
-core.save # 按读取的保存到文件
+# core.read # 按注册的读取
+# # binding.pry # 如果需要检查
+# core.save # 按读取的保存到文件
 
-# core.load # 载入文件
+core.load # 载入文件
 # # binding.pry
-# core.write # 写入 ELF
+core.write # 写入 ELF

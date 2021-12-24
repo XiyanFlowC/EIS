@@ -2,12 +2,13 @@ require "rexml/document"
 
 module EIS
   class XMLIO
-    def initialize elf, tbls, perm_man, fpath
+    def initialize elf, tbls, perm_man, svc_hub, fpath
       raise ArgumentError.new("fpath", "fpath must be set.") if fpath.nil?
       @elf = elf
       @tbls = tbls
       @permission_man = perm_man
       @path = fpath
+      @svc_hub = svc_hub
     end
 
     ##
@@ -103,7 +104,7 @@ module EIS
     def do_tblload(xmlele, tbl)
       data = Hash.new nil
       xmlele.elements.each do |e| # entries in table
-        cnt = Module.const_get(e.name).new # new instance of Type
+        cnt = Module.const_get(e.name).new(@svc_hub) # new instance of Type
 
         postpondread = []
 

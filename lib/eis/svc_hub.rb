@@ -3,7 +3,7 @@ require "eis/error"
 module EIS
   ##
   # = Service Hub
-  # A hub holding services. Which could struct parameter string.
+  # A hub holding services. Which could struct parameter array.
   #
   # It is designed to relace the mess member variables and class instance
   # varibles in both ElfMan and Core.

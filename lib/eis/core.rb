@@ -56,7 +56,7 @@ module EIS
       @string_allocator = @svc_hub.acsvc StringAllocator
       @table_manager = @svc_hub.acsvc TableMan
 
-      @fiomgr = fiomgr.new @elf, @table_manager, @permission_man, fpath unless fpath.nil?
+      @fiomgr = fiomgr.new @elf, @table_manager, @permission_man, @svc_hub, fpath unless fpath.nil?
     end
 
     attr_reader :svc_hub
